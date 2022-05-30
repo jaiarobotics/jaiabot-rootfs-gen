@@ -1,16 +1,8 @@
-lsb-release
+# core
+ubuntu-minimal
+ubuntu-standard
+initramfs-tools
+btrfs-tools
+overlayroot
 net-tools
 ifupdown
-sudo
-openssh-server
-socat
-zile
-screen
-git
-mosh
-picocom
-minicom
-curl
-gnupg2
-apt-transport-https
-systemd-sysv
