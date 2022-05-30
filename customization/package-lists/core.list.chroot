@@ -1,0 +1,16 @@
+lsb-release
+net-tools
+ifupdown
+sudo
+openssh-server
+socat
+zile
+screen
+git
+mosh
+picocom
+minicom
+curl
+gnupg2
+apt-transport-https
+systemd-sysv
