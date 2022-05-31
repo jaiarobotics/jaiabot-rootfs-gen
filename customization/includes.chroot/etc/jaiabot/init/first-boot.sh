@@ -53,6 +53,46 @@ echo -e "\nResizing filesystem: $JAIABOT_DATA_PARTITION\n"
 # btrfs filesystem resize requires mount point as the argument
 (set -x; btrfs filesystem resize max $JAIABOT_DATA_MOUNTPOINT)
 
+# allow jaia user to write logs
+chown -R jaia:jaia /var/log/jaiabot
+
+echo "###############################################"
+echo "## Setting up i2c                            ##"
+echo "###############################################"
+
+groupadd i2c
+chown :i2c /dev/i2c-1
+chmod g+rw /dev/i2c-1
+usermod -aG i2c ubuntu
+udev_entry='KERNEL=="i2c-[0-9]*", GROUP="i2c"'
+grep "$udev_entry" /etc/udev/rules.d/10-local_i2c_group.rules || echo "$udev_entry" >> /etc/udev/rules.d/10-local_i2c_group.rules
+
+echo "###############################################"
+echo "## Setting up swap partition                 ##"
+echo "###############################################"
+
+JAIABOT_SWAPFILE=${JAIABOT_DATA_MOUNTPOINT}/swapfile
+
+fallocate -l 2G $JAIABOT_SWAPFILE
+chmod 600 $JAIABOT_SWAPFILE
+mkswap $JAIABOT_SWAPFILE
+swapon $JAIABOT_SWAPFILE
+fstab_entry="$JAIABOT_SWAPFILE swap swap defaults 0 0"
+grep "$fstab_entry" /etc/fstab || echo "$fstab_entry" >> /etc/fstab
+
+echo "###############################################"
+echo "## Disable getty on /dev/ttyS0               ##"
+echo "###############################################"
+
+systemctl stop serial-getty@ttyS0.service
+systemctl disable serial-getty@ttyS0.service
+
+echo "###############################################"
+echo "## Setting up device links                   ##"
+echo "###############################################"
+
+python3 /etc/jaiabot/init/setup_device_links.py
+
 echo "###############################################"
 echo "## Install jaiabot-embedded package          ##"
 echo "###############################################"
