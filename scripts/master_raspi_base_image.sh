@@ -79,7 +79,10 @@ function finish {
   
     # Unmount the partitions
     sudo umount "$ROOTFS_PARTITION"/boot/firmware
+    sudo umount "$ROOTFS_PARTITION"/dev/pts
     sudo umount "$ROOTFS_PARTITION"/dev
+    sudo umount "$ROOTFS_PARTITION"/proc
+    sudo umount "$ROOTFS_PARTITION"/sys
     sudo umount "$ROOTFS_PARTITION"
     sudo umount "$BOOT_PARTITION"
 
@@ -135,25 +138,34 @@ fi
 echo "Building bootable Raspberry Pi image in $WORKDIR"
 cd "$WORKDIR"
 
-# Create a 2 GB image
+# Create a 4.6 GiB image
 SD_IMAGE_PATH="$OUTPUT_IMAGE_PATH"
-dd if=/dev/zero of="$SD_IMAGE_PATH" bs=1M count=2048 conv=sparse status=none
+dd if=/dev/zero of="$SD_IMAGE_PATH" bs=1048576 count=4600 conv=sparse status=none
 
 # Apply the partition map
+# 256 MB boot
+# 2 GB underlay ro rootfs
+# 2 GB overlay upper rw
+# 200 MB (to resize to fill disk) data partition 
 sfdisk --quiet "$SD_IMAGE_PATH" <<EOF
 label: dos
+device: /dev/sdc
 unit: sectors
 
-boot   : start=        2048, size=      262144, type=b, bootable
-rootfs : start=      264192, size=     3930112, type=83
+/dev/sdc1 : start=        8192, size=      524288, type=c, bootable
+/dev/sdc2 : start=      532480, size=     4194304, type=83
+/dev/sdc3 : start=     4726784, size=     4194304, type=83
+/dev/sdc4 : start=     8921088, size=      409600, type=83
 EOF
 
 # Set up loop device for the partitions
-attach_image "$SD_IMAGE_PATH" BOOT_DEV ROOTFS_DEV
+attach_image "$SD_IMAGE_PATH" BOOT_DEV ROOTFS_DEV OVERLAY_DEV DATA_DEV
 
 # Format the partitions
 sudo mkfs.vfat -F 32 -n boot "$BOOT_DEV"
 sudo mkfs.ext4 -L rootfs "$ROOTFS_DEV"
+sudo mkfs.btrfs -L overlay "$OVERLAY_DEV"
+sudo mkfs.btrfs -L data "$DATA_DEV"
 
 # Mount the partitions
 mkdir boot rootfs
@@ -166,6 +178,8 @@ sudo mount "$ROOTFS_DEV" "$ROOTFS_PARTITION"
 # Build the rootfs
 cp -r "$ROOTFS_BUILD_PATH" rootfs-build
 cd rootfs-build
+# remove any existing cached data
+rm -rf cache
 lb clean
 lb config
 #mkdir -p config/includes.chroot/etc/cgsn-mooring
@@ -193,6 +207,7 @@ sudo tar --exclude 'kernel*' -C "$BOOT_PARTITION" --strip-components 2 \
 cat >> "$BOOT_PARTITION"/config.txt <<EOF
 # Run in 64-bit mode
 arm_64bit=1
+dtoverlay=dwc2
 
 # Disable compensation for displays with overscan
 disable_overscan=1
@@ -203,6 +218,10 @@ disable_overscan=1
 # (e.g. for USB device mode) or if USB support is not required.
 otg_mode=1
 
+# Enable the USB2 outputs on the IO board (assuming your CM4 is plugged into
+# such a board)
+dtoverlay=dwc2,dr_mode=host
+
 [all]
 
 [pi4]
@@ -212,15 +231,34 @@ arm_boost=1
 [all]
 initramfs initrd.img followkernel
 kernel=vmlinuz
+
+# from Ubuntu image sysconfig.txt
+enable_uart=1
+dtparam=audio=on
+dtparam=i2c_arm=on
+dtparam=spi=on
+cmdline=cmdline.txt
+
+# jaiabot
+dtoverlay=uart3,txd3_pin=7,rxd3_pin=29
+dtoverlay=uart4,txd4_pin=24,rxd4_pin=21
+dtoverlay=uart5,txd5_pin=32,rxd5_pin=33
+dtoverlay=spi1-3cs
+
 EOF
 cat > "$BOOT_PARTITION"/cmdline.txt <<EOF
-console=serial0,115200 console=tty1 root=LABEL=rootfs rootfstype=ext4 fsck.repair=yes rootwait
+console=tty1 root=LABEL=rootfs rootfstype=ext4 fsck.repair=yes rootwait fixrtc net.ifnames=0 dwc_otg.lpm_enable=0
 EOF
 
 # Flash the kernel
+sudo mkdir "$ROOTFS_PARTITION"/boot/firmware
 sudo mount -o bind "$BOOT_PARTITION" "$ROOTFS_PARTITION"/boot/firmware
 sudo mount -o bind /dev "$ROOTFS_PARTITION"/dev
-sudo chroot "$ROOTFS_PARTITION" flash-kernel
+sudo mount -o bind /dev/pts "$ROOTFS_PARTITION"/dev/pts
+sudo mount -o bind /proc "$ROOTFS_PARTITION"/proc
+sudo mount -o bind /sys "$ROOTFS_PARTITION"/sys
+
+sudo chroot rootfs apt-get -y install linux-image-raspi
 
 # Fin.
 echo "Raspberry Pi image created at $OUTPUT_IMAGE_PATH"

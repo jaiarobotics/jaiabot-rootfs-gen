@@ -1,19 +1,17 @@
-# tools
+## tools
 openssh-server
-socat
+# socat
 zile
-vim
-screen
-git
-mosh
-picocom
-minicom
-curl
-gpsd
-gpsd-clients
-ntp
-# for growpart
-cloud-guest-utils
-# for stress testing
-stress
-memtester
+# vim
+# screen
+# git
+# mosh
+# picocom
+# minicom
+# curl
+# gpsd
+# gpsd-clients
+# ntp
+## for stress testing
+# stress
+# memtester

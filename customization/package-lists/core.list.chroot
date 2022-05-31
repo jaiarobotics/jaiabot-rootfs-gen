@@ -1,8 +1,10 @@
 # core
 ubuntu-minimal
-ubuntu-standard
+# ubuntu-standard
 initramfs-tools
-btrfs-tools
+btrfs-progs
 overlayroot
 net-tools
 ifupdown
+# for growpart
+cloud-guest-utils
