@@ -1,17 +1,17 @@
 ## tools
 openssh-server
-# socat
+socat
 zile
-# vim
-# screen
-# git
-# mosh
-# picocom
-# minicom
-# curl
-# gpsd
-# gpsd-clients
-# ntp
+vim
+screen
+git
+mosh
+picocom
+minicom
+curl
+gpsd
+gpsd-clients
+ntp
 ## for stress testing
-# stress
-# memtester
+stress
+memtester

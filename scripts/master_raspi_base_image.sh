@@ -31,6 +31,10 @@
 #         The path to a tarball containing pre-built Raspberry Pi boot partition
 #         files. If omitted, a copy will be downloaded.
 #
+#     --rootfs binary-tar.tar.gz
+#         The path to a tarball containing a live-build generated rootfs. If omitted
+#         the rootfs will be build using live-build.
+#
 #     --dest directory|file.img
 #         If an existing directory, the image file will be written to it using
 #         the default name format. If not,
@@ -61,6 +65,7 @@ RASPI_FIRMWARE_VERSION=1.20220331
 ROOTFS_BUILD_PATH="$TOPLEVEL"
 DEFAULT_IMAGE_NAME=jaiabot_img-"$ROOTFS_BUILD_TAG".img
 OUTPUT_IMAGE_PATH="$(pwd)"/"$DEFAULT_IMAGE_NAME"
+ROOTFS_TARBALL=
 
 # Ensure user is root
 if [ "$UID" -ne 0 ]; then
@@ -117,6 +122,10 @@ while [[ $# -gt 0 ]]; do
     ROOTFS_BUILD_PATH="$(cd "$1"; pwd)"
     shift
     ;;
+  --rootfs)
+    ROOTFS_TARBALL="$(cd "$(dirname "$1")"; pwd)/$(basename "$1")"
+    shift
+    ;;
   --debug)
     DEBUG=1
     set -x
@@ -138,24 +147,24 @@ fi
 echo "Building bootable Raspberry Pi image in $WORKDIR"
 cd "$WORKDIR"
 
-# Create a 4.6 GiB image
+# Create a 6.6 GiB image
 SD_IMAGE_PATH="$OUTPUT_IMAGE_PATH"
-dd if=/dev/zero of="$SD_IMAGE_PATH" bs=1048576 count=4600 conv=sparse status=none
+dd if=/dev/zero of="$SD_IMAGE_PATH" bs=1048576 count=6600 conv=sparse status=none
 
 # Apply the partition map
 # 256 MB boot
-# 2 GB underlay ro rootfs
+# 4 GB underlay ro rootfs
 # 2 GB overlay upper rw
-# 200 MB (to resize to fill disk) data partition 
+# 200 MB (to resize to fill disk) log partition 
 sfdisk --quiet "$SD_IMAGE_PATH" <<EOF
 label: dos
 device: /dev/sdc
 unit: sectors
 
 /dev/sdc1 : start=        8192, size=      524288, type=c, bootable
-/dev/sdc2 : start=      532480, size=     4194304, type=83
-/dev/sdc3 : start=     4726784, size=     4194304, type=83
-/dev/sdc4 : start=     8921088, size=      409600, type=83
+/dev/sdc2 : start=      532480, size=     8388608, type=83
+/dev/sdc3 : start=     8921088, size=     4194304, type=83
+/dev/sdc4 : start=    13115392, size=      409600, type=83
 EOF
 
 # Set up loop device for the partitions
@@ -175,22 +184,26 @@ ROOTFS_PARTITION="$WORKDIR"/rootfs
 sudo mount "$BOOT_DEV" "$BOOT_PARTITION"
 sudo mount "$ROOTFS_DEV" "$ROOTFS_PARTITION"
 
-# Build the rootfs
-cp -r "$ROOTFS_BUILD_PATH" rootfs-build
-cd rootfs-build
-# remove any existing cached data
-rm -rf cache
-lb clean
-lb config
-#mkdir -p config/includes.chroot/etc/cgsn-mooring
-#echo "CGSN_IMAGE_VERSION=$ROOTFS_BUILD_TAG" >> config/includes.chroot/etc/cgsn-mooring/version
-#echo "CGSN_IMAGE_BUILD_DATE=\"`date -u`\""  >> config/includes.chroot/etc/cgsn-mooring/version
-lb build
-cd ..
+if [ -z "$ROOTFS_TARBALL" ]; then
+    # Build the rootfs
+    mkdir rootfs-build
+    cp -r "$ROOTFS_BUILD_PATH"/auto "$ROOTFS_BUILD_PATH"/customization rootfs-build
+    cd rootfs-build
+    # remove any existing cached data
+    rm -rf cache
+    lb clean
+    lb config
+    mkdir -p config/includes.chroot/etc/jaiabot
+    echo "JAIABOT_IMAGE_VERSION=$ROOTFS_BUILD_TAG" >> config/includes.chroot/etc/jaiabot/version
+    echo "JAIABOT_IMAGE_BUILD_DATE=\"`date -u`\""  >> config/includes.chroot/etc/jaiabot/version
+    lb build
+    cd ..
+    ROOTFS_TARBALL=rootfs-build/binary-tar.tar.gz
+fi
 
 # Install the rootfs tarball to the partition
 sudo tar -C "$ROOTFS_PARTITION" --strip-components 1 \
-  -xpzf rootfs-build/binary-tar.tar.gz
+  -xpzf "$ROOTFS_TARBALL"
 
 # Download the Raspberry Pi firmware tarball if we don't have it
 if [ -z "$FIRMWARE_PATH" ]; then
@@ -247,11 +260,11 @@ dtoverlay=spi1-3cs
 
 EOF
 cat > "$BOOT_PARTITION"/cmdline.txt <<EOF
-console=tty1 root=LABEL=rootfs rootfstype=ext4 fsck.repair=yes rootwait fixrtc net.ifnames=0 dwc_otg.lpm_enable=0
+console=tty1 root=LABEL=rootfs rootfstype=ext4 fsck.repair=yes rootwait fixrtc net.ifnames=0 dwc_otg.lpm_enable=0 overlayroot=disabled
 EOF
 
 # Flash the kernel
-sudo mkdir "$ROOTFS_PARTITION"/boot/firmware
+sudo mkdir -p "$ROOTFS_PARTITION"/boot/firmware
 sudo mount -o bind "$BOOT_PARTITION" "$ROOTFS_PARTITION"/boot/firmware
 sudo mount -o bind /dev "$ROOTFS_PARTITION"/dev
 sudo mount -o bind /dev/pts "$ROOTFS_PARTITION"/dev/pts
