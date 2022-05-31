@@ -44,12 +44,20 @@ echo "###############################################"
 JAIABOT_DATA_PARTITION=$(realpath /dev/disk/by-label/data)
 JAIABOT_DATA_DISK=${JAIABOT_DATA_PARTITION:0:(-1)}
 JAIABOT_DATA_PARTITION_NUMBER=${JAIABOT_DATA_PARTITION:(-1)}
+JAIABOT_DATA_MOUNTPOINT="/var/log"
 
 echo -e "\nResizing partition $JAIABOT_DATA_PARTITION_NUMBER of: $JAIABOT_DATA_DISK\n"
 (set -x; growpart $JAIABOT_DATA_DISK $JAIABOT_DATA_PARTITION_NUMBER || [ $? -lt 2 ])
 
 echo -e "\nResizing filesystem: $JAIABOT_DATA_PARTITION\n"
-(set -x; resize2fs $JAIABOT_DATA_PARTITION)
+# btrfs filesystem resize requires mount point as the argument
+(set -x; btrfs filesystem resize max $JAIABOT_DATA_MOUNTPOINT)
+
+echo "###############################################"
+echo "## Install jaiabot-embedded package          ##"
+echo "###############################################"
+
+run_wt_yesno "Do you want to install and configure the jaiabot-embedded Debian package?" && apt install -y /opt/jaiabot-embedded*.deb
 
 echo "###############################################################"
 echo "## Removing first-boot hooks so that this does not run again ##"

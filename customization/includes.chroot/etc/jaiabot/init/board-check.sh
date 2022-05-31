@@ -36,7 +36,6 @@ STRESS_SECONDS=10
 echo -e "\nStressing data disk writes for $STRESS_SECONDS seconds\n"
 sleep 1
 
-(set -x; cd /media/data; sudo stress -d `nproc` -t $STRESS_SECONDS)
+(set -x; cd /var/log; sudo stress -d `nproc` -t $STRESS_SECONDS)
 
 echo -e "\nPassed: data disk stress test\n"
-
