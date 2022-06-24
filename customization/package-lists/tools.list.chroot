@@ -3,6 +3,7 @@ openssh-server
 socat
 zile
 vim
+nano
 screen
 git
 mosh
