@@ -112,7 +112,10 @@ echo "###############################################"
 echo "## Setting up device links                   ##"
 echo "###############################################"
 
-python3 /etc/jaiabot/init/setup_device_links.py
+# for backwards compatibility, remove once we've updated all bots to rootfs-gen filesystem
+ln -s /dev/gps0 /etc/jaiabot/dev/gps
+ln -s /dev/arduino /etc/jaiabot/dev/arduino
+ln -s /dev/xbee /etc/jaiabot/dev/xbee
 
 echo "###############################################"
 echo "## Install jaiabot-embedded package          ##"
