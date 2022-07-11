@@ -1,0 +1,3 @@
+KERNEL=="ttyAMA3", SYMLINK+="gps0"
+KERNEL=="ttyAMA1", SYMLINK+="arduino"
+SUBSYSTEMS=="usb", ATTRS{interface}=="FT231X USB UART", SYMLINK+="xbee"

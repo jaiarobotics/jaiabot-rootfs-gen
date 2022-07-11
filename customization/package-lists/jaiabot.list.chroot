@@ -11,3 +11,5 @@ moosdb10
 libmoos-ivp
 gpsd
 wireguard
+ntp
+ntpstat
