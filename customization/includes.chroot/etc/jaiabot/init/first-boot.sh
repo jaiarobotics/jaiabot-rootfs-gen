@@ -113,6 +113,7 @@ echo "## Setting up device links                   ##"
 echo "###############################################"
 
 # for backwards compatibility, remove once we've updated all bots to rootfs-gen filesystem
+mkdir -p /etc/jaiabot/dev
 ln -s /dev/gps0 /etc/jaiabot/dev/gps
 ln -s /dev/arduino /etc/jaiabot/dev/arduino
 ln -s /dev/xbee /etc/jaiabot/dev/xbee
