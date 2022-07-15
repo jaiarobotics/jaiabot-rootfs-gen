@@ -42,7 +42,7 @@ echo "## Resizing data partition to fill disk      ##"
 echo "###############################################"
 
 JAIABOT_DATA_PARTITION=$(realpath /dev/disk/by-label/data)
-JAIABOT_DATA_DISK=${JAIABOT_DATA_PARTITION:0:(-1)}
+JAIABOT_DATA_DISK="/dev/$(lsblk ${JAIABOT_DATA_PARTITION} -n -s -o NAME -l | tail -1)"
 JAIABOT_DATA_PARTITION_NUMBER=${JAIABOT_DATA_PARTITION:(-1)}
 JAIABOT_DATA_MOUNTPOINT="/var/log"
 
