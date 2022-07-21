@@ -3,6 +3,7 @@ openssh-server
 socat
 zile
 vim
+nano
 screen
 git
 mosh
@@ -12,6 +13,7 @@ curl
 gpsd
 gpsd-clients
 ntp
+rsync
 ## for stress testing
 stress
 memtester

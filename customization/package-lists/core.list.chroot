@@ -9,3 +9,4 @@ ifupdown
 # for growpart
 cloud-guest-utils
 gpg
+wpasupplicant

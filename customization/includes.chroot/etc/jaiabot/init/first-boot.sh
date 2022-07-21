@@ -30,12 +30,19 @@ run_wt_password "Password" "Enter a new password for jaia"
 [ $? -eq 0 ] || exit 1
 echo "jaia:$WT_PASSWORD" | chpasswd
 
+echo "######################################################"
+echo "## Disallow password login on SSH                   ##"
+echo "######################################################"
+
+cp /etc/ssh/sshd_config /etc/ssh/sshd_config~
+sed -i 's/^[# ]*PasswordAuthentication .*/PasswordAuthentication no/' /etc/ssh/sshd_config
+
 echo "###############################################"
 echo "## Resizing data partition to fill disk      ##"
 echo "###############################################"
 
 JAIABOT_DATA_PARTITION=$(realpath /dev/disk/by-label/data)
-JAIABOT_DATA_DISK=${JAIABOT_DATA_PARTITION:0:(-1)}
+JAIABOT_DATA_DISK="/dev/$(lsblk ${JAIABOT_DATA_PARTITION} -n -s -o NAME -l | tail -1)"
 JAIABOT_DATA_PARTITION_NUMBER=${JAIABOT_DATA_PARTITION:(-1)}
 JAIABOT_DATA_MOUNTPOINT="/var/log"
 
@@ -68,6 +75,33 @@ udev_entry='KERNEL=="i2c-[0-9]*", GROUP="i2c"'
 grep "$udev_entry" /etc/udev/rules.d/10-local_i2c_group.rules || echo "$udev_entry" >> /etc/udev/rules.d/10-local_i2c_group.rules
 
 echo "###############################################"
+echo "## Setting up wifi                           ##"
+echo "###############################################"
+
+run_wt_yesno "Wired ethernet (eth0)" \
+             "Do you want to disable the wired Ethernet interface (eth0)?" && sed -i 's/^ *auto eth0/#auto eth0/' /etc/network/interfaces.d/eth0
+
+
+run_wt_yesno "Wireless ethernet (wlan0)" \
+             "Do you want to configure the wireless Ethernet interface (wlan0)?" &&
+(
+run_wt_inputbox "wlan0 SSID" \
+            "Enter wlan0 SSID"
+wlan_ssid=${WT_TEXT}
+
+run_wt_inputbox "SSID Password" \
+                "Enter the password for SSID ${wlan_ssid}"
+wlan_password=${WT_TEXT}
+
+cat << EOF > /etc/network/interfaces.d/wlan0
+auto wlan0
+iface wlan0 inet dhcp
+   wpa-essid ${wlan_ssid}
+   wpa-psk ${wlan_password}
+EOF
+)
+
+echo "###############################################"
 echo "## Disable getty on /dev/ttyS0               ##"
 echo "###############################################"
 
@@ -78,7 +112,11 @@ echo "###############################################"
 echo "## Setting up device links                   ##"
 echo "###############################################"
 
-python3 /etc/jaiabot/init/setup_device_links.py
+# for backwards compatibility, remove once we've updated all bots to rootfs-gen filesystem
+mkdir -p /etc/jaiabot/dev
+ln -s /dev/gps0 /etc/jaiabot/dev/gps
+ln -s /dev/arduino /etc/jaiabot/dev/arduino
+ln -s /dev/xbee /etc/jaiabot/dev/xbee
 
 echo "###############################################"
 echo "## Install jaiabot-embedded package          ##"
