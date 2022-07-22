@@ -24,7 +24,7 @@ jobs:
       - checkout
       - run:
           name: Install apt dependencies
-          command: sudo apt-get update && sudo apt-get -y install pbzip2 dosfstools gcc-aarch64-linux-gnu git kpartx live-build sudo wget
+          command: sudo apt-get update && sudo apt-get -y install pigz dosfstools gcc-aarch64-linux-gnu git kpartx live-build sudo wget
       - run:
           name: Create base SD card image for Raspberry Pi
           command: >-
@@ -38,6 +38,6 @@ jobs:
                images/jaiabot_"$CIRCLE_BRANCH"_img-"$ROOTFS_BUILD_TAG".img
       - run:
           name: Compress image
-          command: pbzip2 -p4 images/*.img
+          command: pigz images/*.img
       - store_artifacts:
           path: images/
