@@ -16,33 +16,20 @@ workflows:
       - raspi-image-master
 
 jobs:
-  # This job masters a bootable SD card image for the Raspberry Pi. 
-  #
-  # Because the mastering process requires being able to mount filesystems and
-  # use the binfmt_misc kernel module, the standard CircleCI Docker-based
-  # executor cannot be used. Hence, this job executes in a CircleCI VM, and
-  # runs the actual mastering script inside a privileged Docker container.
-  #
-  # At the time of writing, the binfmt_misc capability is provided by the
-  # CircleCI VM kernel. If this changes in the future, please install the
-  # binfmt-support package *outside* the Docker container.
   raspi-image-master:
-    machine: true
+    machine:
+      image: ubuntu-2004:202101-01
+    resource_class: arm.medium
     steps:
       - checkout
       - run:
-          name: Install parallel bzip2
-          command: sudo apt-get update && sudo apt-get -y install pbzip2
+          name: Install parallel bzip2 
+          command: sudo apt-get update && sudo apt-get -y install pbzip2 dosfstools gcc-aarch64-linux-gnu git kpartx live-build sudo wget
       - run:
           name: Create base SD card image for Raspberry Pi
           command: >-
             mkdir images &&
-            sudo docker run \
-              --privileged \
-              --volume "$(pwd)":/root/jaiabot-rootfs-gen \
-              --workdir /root/jaiabot-rootfs-gen \
-              gobysoft/jaiabot-master-raspi:1.0.0 \
-                scripts/master_raspi_base_image.sh \
+            sudo scripts/master_raspi_base_image.sh
                 --dest images/base_image.img
       - run:
           name: Rename image
