@@ -43,6 +43,9 @@
 #     --debug
 #         If an error happens, do not remove the scratch directory.
 #
+#     --native
+#         Run on native aarch64 hardware, rather than emulate building with QEMU
+#
 # This script is invoked by the raspi-image-master job in the cgsn_mooring
 # project's CircleCI but can also be invoked directly.
 #
@@ -130,16 +133,22 @@ while [[ $# -gt 0 ]]; do
     DEBUG=1
     set -x
     ;;
+  --native)
+    NATIVE=1
+    ;;
   *)
     echo "Unexpected argument: $KEY" >&2
     exit 1
   esac
 done
 
-# Test that executing foreign binaries under QEMU will work
-if ! enable_binfmt_rule qemu-aarch64; then
-  echo "This system cannot execute ARM binaries under QEMU" >&2
-  exit 1
+if [[ "$NATIVE" == "1" && $(arch) != "aarch64"  ]]; then
+    echo "This system is not suitable for a native build"
+    exit 1
+elif ! enable_binfmt_rule qemu-aarch64; then
+    # Test that executing foreign binaries under QEMU will work
+    echo "This system cannot execute ARM binaries under QEMU" >&2
+    exit 1
 fi
 
 
@@ -192,6 +201,7 @@ if [ -z "$ROOTFS_TARBALL" ]; then
     # remove any existing cached data
     rm -rf cache
     lb clean
+    [ -z "$NATIVE" ] && cp auto/config.qemu auto/config || cp auto/config.native auto/config
     lb config
     mkdir -p config/includes.chroot/etc/jaiabot
     echo "JAIABOT_IMAGE_VERSION=$ROOTFS_BUILD_TAG" >> config/includes.chroot/etc/jaiabot/version

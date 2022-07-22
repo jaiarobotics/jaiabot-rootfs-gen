@@ -23,14 +23,13 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Install parallel bzip2 
+          name: Install apt dependencies
           command: sudo apt-get update && sudo apt-get -y install pbzip2 dosfstools gcc-aarch64-linux-gnu git kpartx live-build sudo wget
       - run:
           name: Create base SD card image for Raspberry Pi
           command: >-
             mkdir images &&
-            sudo scripts/master_raspi_base_image.sh
-                --dest images/base_image.img
+            sudo scripts/master_raspi_base_image.sh --dest images/base_image.img --native
       - run:
           name: Rename image
           command: >-
