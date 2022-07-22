@@ -1,0 +1,57 @@
+version: 2
+workflows:
+  version: 2
+  commit:
+    jobs:
+      - raspi-image-master      
+  nightly:
+    triggers:
+      - schedule:
+          cron: "0 7 * * *"
+          filters:
+            branches:
+              only:
+                - /.*/
+    jobs:
+      - raspi-image-master
+
+jobs:
+  # This job masters a bootable SD card image for the Raspberry Pi. 
+  #
+  # Because the mastering process requires being able to mount filesystems and
+  # use the binfmt_misc kernel module, the standard CircleCI Docker-based
+  # executor cannot be used. Hence, this job executes in a CircleCI VM, and
+  # runs the actual mastering script inside a privileged Docker container.
+  #
+  # At the time of writing, the binfmt_misc capability is provided by the
+  # CircleCI VM kernel. If this changes in the future, please install the
+  # binfmt-support package *outside* the Docker container.
+  raspi-image-master:
+    machine: true
+    steps:
+      - checkout
+      - run:
+          name: Install parallel bzip2
+          command: sudo apt-get update && sudo apt-get -y install pbzip2
+      - run:
+          name: Create base SD card image for Raspberry Pi
+          command: >-
+            mkdir images &&
+            sudo docker run \
+              --privileged \
+              --volume "$(pwd)":/root/jaiabot-rootfs-gen \
+              --workdir /root/jaiabot-rootfs-gen \
+              gobysoft/jaiabot-master-raspi:1.0.0 \
+                scripts/master_raspi_base_image.sh \
+                --dest images/base_image.img
+      - run:
+          name: Rename image
+          command: >-
+            ROOTFS_BUILD_TAG="$(git describe --tags HEAD | sed 's/_/~/' | sed 's/-/+/g')" &&          
+            mv images/base_image.img \
+               images/jaiabot_"$CIRCLE_BRANCH"_img-"$ROOTFS_BUILD_TAG".img
+      - run:
+          name: Compress image
+          command: pbzip2 -p4 images/*.img
+      - store_artifacts:
+          path: images/
