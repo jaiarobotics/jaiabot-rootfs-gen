@@ -142,9 +142,11 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ "$NATIVE" == "1" && $(arch) != "aarch64"  ]]; then
-    echo "This system is not suitable for a native build"
-    exit 1
+if [[ "$NATIVE" == "1" ]]; then
+    if [[ $(arch) != "aarch64"  ]]; then
+        echo "This system is not suitable for a native build"
+        exit 1
+    fi
 elif ! enable_binfmt_rule qemu-aarch64; then
     # Test that executing foreign binaries under QEMU will work
     echo "This system cannot execute ARM binaries under QEMU" >&2
