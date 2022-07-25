@@ -1,0 +1,43 @@
+version: 2
+workflows:
+  version: 2
+  commit:
+    jobs:
+      - raspi-image-master      
+  nightly:
+    triggers:
+      - schedule:
+          cron: "0 7 * * *"
+          filters:
+            branches:
+              only:
+                - /.*/
+    jobs:
+      - raspi-image-master
+
+jobs:
+  raspi-image-master:
+    machine:
+      image: ubuntu-2004:202101-01
+    resource_class: arm.medium
+    steps:
+      - checkout
+      - run:
+          name: Install apt dependencies
+          command: sudo apt-get update && sudo apt-get -y install pigz dosfstools gcc-aarch64-linux-gnu git kpartx live-build sudo wget
+      - run:
+          name: Create base SD card image for Raspberry Pi
+          command: >-
+            mkdir images &&
+            sudo scripts/master_raspi_base_image.sh --dest images/base_image.img --native
+      - run:
+          name: Rename image
+          command: >-
+            ROOTFS_BUILD_TAG="$(git describe --tags HEAD | sed 's/_/~/' | sed 's/-/+/g')" &&          
+            mv images/base_image.img \
+               images/jaiabot_"$CIRCLE_BRANCH"_img-"$ROOTFS_BUILD_TAG".img
+      - run:
+          name: Compress image
+          command: pigz images/*.img
+      - store_artifacts:
+          path: images/
