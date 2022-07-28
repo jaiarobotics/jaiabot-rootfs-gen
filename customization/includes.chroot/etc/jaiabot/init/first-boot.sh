@@ -114,9 +114,9 @@ echo "###############################################"
 
 # for backwards compatibility, remove once we've updated all bots to rootfs-gen filesystem
 mkdir -p /etc/jaiabot/dev
-ln -s /dev/gps0 /etc/jaiabot/dev/gps
-ln -s /dev/arduino /etc/jaiabot/dev/arduino
-ln -s /dev/xbee /etc/jaiabot/dev/xbee
+ln -s -f /dev/gps0 /etc/jaiabot/dev/gps
+ln -s -f /dev/arduino /etc/jaiabot/dev/arduino
+ln -s -f /dev/xbee /etc/jaiabot/dev/xbee
 
 echo "###############################################"
 echo "## Install jaiabot-embedded package          ##"
