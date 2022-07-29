@@ -7,5 +7,5 @@ SUBSYSTEMS=="usb", ATTRS{interface}=="FT231X USB UART", SYMLINK+="xbee"
 # RP4 CM
 KERNEL=="ttyAMA2", SYMLINK+="xbee"
 
-## gps
-KERNEL=="ttyAMA3", SYMLINK+="gps0"
+## gps - managed by gps_i2c_pipe.service
+
