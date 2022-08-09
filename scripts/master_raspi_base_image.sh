@@ -260,7 +260,7 @@ kernel=vmlinuz
 # from Ubuntu image sysconfig.txt
 enable_uart=1
 dtparam=audio=on
-dtparam=i2c_arm=on
+dtparam=i2c_arm=on,i2c_arm_baudrate=400000
 dtparam=spi=on
 cmdline=cmdline.txt
 
