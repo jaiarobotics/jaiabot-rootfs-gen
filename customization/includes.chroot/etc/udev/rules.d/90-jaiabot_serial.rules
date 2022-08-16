@@ -1,11 +1,7 @@
 ## arduino
-KERNEL=="ttyAMA1", SYMLINK+="arduino"
+KERNEL=="ttyUSB0", SYMLINK+="arduino"
 
 ## xbee
-# RP4
-SUBSYSTEMS=="usb", ATTRS{interface}=="FT231X USB UART", SYMLINK+="xbee"
-# RP4 CM
 KERNEL=="ttyAMA2", SYMLINK+="xbee"
 
 ## gps - managed by gps_i2c_pipe.service
-
