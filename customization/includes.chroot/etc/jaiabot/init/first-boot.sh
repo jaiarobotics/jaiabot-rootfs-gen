@@ -114,6 +114,7 @@ echo "###############################################"
 
 # for backwards compatibility, remove once we've updated all bots to rootfs-gen filesystem
 mkdir -p /etc/jaiabot/dev
+systemctl enable gps_i2c_pty
 ln -s -f /dev/gps0 /etc/jaiabot/dev/gps
 ln -s -f /dev/arduino /etc/jaiabot/dev/arduino
 ln -s -f /dev/xbee /etc/jaiabot/dev/xbee
