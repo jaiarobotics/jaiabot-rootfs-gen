@@ -6,28 +6,34 @@ import sys
 import argparse
 import os
 import stat
+import pty
+import systemd.daemon
 
-'''Create a fifo pipe, and send all the i2c gps data to it'''
+'''Create a pty, and send all the i2c gps data to it'''
 
 parser = argparse.ArgumentParser()
-parser.add_argument('fifo_path')
+parser.add_argument('pty_path')
 args = parser.parse_args()
 
-# Create the fifo, and make r/w/x by all, and open it
+internal_pty, external_pty = pty.openpty()
 try:
-  os.mkfifo(args.fifo_path)
-except FileExistsError:
+  os.remove(args.pty_path)
+except:
   pass
 
-os.chmod(args.fifo_path, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
+external_pty_name=os.ttyname(external_pty)
+os.symlink(external_pty_name, args.pty_path)
+os.chmod(external_pty_name, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP |stat.S_IROTH | stat.S_IWOTH)
 
-output = open(args.fifo_path, 'w')
+output = os.fdopen(internal_pty, "wb")
 
+# Notify systemd after we have set up the PTY
+# to ensure that dependencies (e.g. GPSD) can see it when they start
+systemd.daemon.notify("READY=1")
 
 BUS = None
 address = 0x42
 gpsReadInterval = 0.03
-
 
 def connectBus():
     global BUS
@@ -51,7 +57,7 @@ def parseResponse(gpsLine):
                      chkVal ^= ord(ch)
                 if (chkVal == int(chkSum, 16)): # Compare the calculated checksum with the one in the NMEA sentence
                      gpsChars = gpsChars.strip() + '\n'
-                     output.write(gpsChars)
+                     output.write(bytes(gpsChars, "ascii"))
                      output.flush()
 
 
