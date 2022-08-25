@@ -93,11 +93,16 @@ run_wt_inputbox "SSID Password" \
                 "Enter the password for SSID ${wlan_ssid}"
 wlan_password=${WT_TEXT}
 
+# IP addresses will be overwritten by jaiabot-embedded after choice of hub/bot info
 cat << EOF > /etc/network/interfaces.d/wlan0
 auto wlan0
-iface wlan0 inet dhcp
+iface wlan0 inet static
    wpa-essid ${wlan_ssid}
    wpa-psk ${wlan_password}
+   address 10.23.XXX.YYY
+   netmask 255.255.255.0
+   gateway 10.23.XXX.1
+
 EOF
 )
 
