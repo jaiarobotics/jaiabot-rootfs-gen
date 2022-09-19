@@ -6,3 +6,4 @@ mkdir /media/root-ro
 mkdir /media/root-rw
 mkdir /media/data
 mkdir /boot/firmware
+mkdir /var/www/html/updates
