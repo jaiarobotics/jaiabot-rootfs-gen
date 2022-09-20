@@ -46,6 +46,9 @@
 #     --native
 #         Run on native aarch64 hardware, rather than emulate building with QEMU
 #
+#     --virtualbox
+#         Create an amd64 virtualbox VDI, rather than a Raspi SD card image (but otherwise create a very similar image)
+#
 # This script is invoked by the raspi-image-master job in the cgsn_mooring
 # project's CircleCI but can also be invoked directly.
 #
@@ -136,6 +139,9 @@ while [[ $# -gt 0 ]]; do
   --native)
     NATIVE=1
     ;;
+  --virtualbox)
+    VIRTUALBOX=1
+    ;;
   *)
     echo "Unexpected argument: $KEY" >&2
     exit 1
@@ -204,6 +210,8 @@ if [ -z "$ROOTFS_TARBALL" ]; then
     rm -rf cache
     lb clean
     [ -z "$NATIVE" ] && cp auto/config.qemu auto/config || cp auto/config.native auto/config
+    [ ! -z "$VIRTUALBOX" ] && cp auto/config.virtualbox auto/config
+    
     lb config
     mkdir -p config/includes.chroot/etc/jaiabot
     echo "JAIABOT_IMAGE_VERSION=$ROOTFS_BUILD_TAG" >> config/includes.chroot/etc/jaiabot/version
@@ -283,7 +291,17 @@ sudo mount -o bind /dev/pts "$ROOTFS_PARTITION"/dev/pts
 sudo mount -o bind /proc "$ROOTFS_PARTITION"/proc
 sudo mount -o bind /sys "$ROOTFS_PARTITION"/sys
 
-sudo chroot rootfs apt-get -y install linux-image-raspi
-
-# Fin.
-echo "Raspberry Pi image created at $OUTPUT_IMAGE_PATH"
+if [ ! -z "$VIRTUALBOX" ]; then    
+    sudo chroot rootfs apt-get -y install linux-image-generic
+    OUTPUT_IMAGE_IMG=$(echo $OUTPUT_IMAGE_PATH | sed "s/\.vdi$/\.img/")
+    [[ "$OUTPUT_IMAGE_IMG" != "$OUTPUT_IMAGE_PATH" ]] && mv $OUTPUT_IMAGE_PATH $OUTPUT_IMAGE_IMG
+    
+    OUTPUT_IMAGE_VDI=$(echo $OUTPUT_IMAGE_PATH | sed "s/\.img$/\.vdi/")
+    VBoxManage convertdd $OUTPUT_IMAGE_IMG $OUTPUT_IMAGE_VDI
+    
+    echo "Virtualbox VDI created at $OUTPUT_IMAGE_VDI, img at $OUTPUT_IMAGE_IMG"
+else
+    sudo chroot rootfs apt-get -y install linux-image-raspi
+    echo "Raspberry Pi image created at $OUTPUT_IMAGE_PATH"
+fi
+   
