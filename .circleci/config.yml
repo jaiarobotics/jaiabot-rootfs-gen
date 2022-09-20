@@ -3,7 +3,7 @@ workflows:
   version: 2
   commit:
     jobs:
-      - raspi-image-master      
+      - raspi-image-create      
   nightly:
     triggers:
       - schedule:
@@ -13,10 +13,10 @@ workflows:
               only:
                 - /.*/
     jobs:
-      - raspi-image-master
+      - raspi-image-create
 
 jobs:
-  raspi-image-master:
+  raspi-image-create:
     machine:
       image: ubuntu-2004:202101-01
     resource_class: arm.medium
@@ -29,7 +29,7 @@ jobs:
           name: Create base SD card image for Raspberry Pi
           command: >-
             mkdir images &&
-            sudo scripts/master_raspi_base_image.sh --dest images/base_image.img --native
+            sudo scripts/create_raspi_base_image.sh --dest images/base_image.img --native
       - run:
           name: Rename image
           command: >-

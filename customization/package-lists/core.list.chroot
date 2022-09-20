@@ -12,3 +12,4 @@ gpg
 wpasupplicant
 # for gps-i2c-pipe.py
 python3-smbus
+apache2

@@ -1,1 +1,1 @@
-deb http://packages.gobysoft.org/ubuntu/release/ @DISTRIBUTION@/
+deb http://packages.jaia.tech/ubuntu/gobysoft/1.y/ @DISTRIBUTION@/
