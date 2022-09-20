@@ -56,6 +56,8 @@ echo -e "\nResizing filesystem: $JAIABOT_DATA_PARTITION\n"
 # allow jaia user to write logs
 chown -R jaia:jaia /var/log/jaiabot
 
+mkdir -p /var/log/apache2
+
 echo "###############################################################"
 echo "## Stress Tests                                              ##" 
 echo "###############################################################"
