@@ -19,7 +19,7 @@ xz-utils
 stress
 memtester
 #Removing cockpit for now
-#We can no longer use wifi in
+#Wlan0 no longer connects to router in
 #the current configuration when this
 #is installed
 #cockpit
