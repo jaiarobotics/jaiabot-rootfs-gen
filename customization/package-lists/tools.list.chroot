@@ -18,5 +18,8 @@ xz-utils
 ## for stress testing
 stress
 memtester
-cockpit
-
+#Removing cockpit for now
+#Wlan0 no longer connects to router in
+#the current configuration when this
+#is installed
+#cockpit
