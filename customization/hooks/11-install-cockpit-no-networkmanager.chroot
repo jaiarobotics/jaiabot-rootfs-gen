@@ -1,0 +1,6 @@
+#!/bin/sh  
+
+echo "Install Cockpit without NetworkManager"
+
+# network manager messes up wlan0 (plus we don't want it)
+apt-get install -y --no-install-recommends cockpit cockpit-dashboard cockpit-packagekit cockpit-storaged
