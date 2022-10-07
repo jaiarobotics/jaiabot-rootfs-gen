@@ -14,3 +14,5 @@ wireguard
 ntp
 ntpstat
 python3-systemd
+gdal-bin
+libgdal-dev
