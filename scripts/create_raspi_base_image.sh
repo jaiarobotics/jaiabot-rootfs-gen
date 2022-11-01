@@ -207,7 +207,6 @@ if [ -z "$ROOTFS_TARBALL" ]; then
     lb config
     mkdir -p config/includes.chroot/etc/jaiabot
     chmod 775 config/includes.chroot/etc/jaiabot
-    chown root:jaia config/includes.chroot/etc/jaiabot
     echo "JAIABOT_IMAGE_VERSION=$ROOTFS_BUILD_TAG" >> config/includes.chroot/etc/jaiabot/version
     echo "JAIABOT_IMAGE_BUILD_DATE=\"`date -u`\""  >> config/includes.chroot/etc/jaiabot/version
     lb build
