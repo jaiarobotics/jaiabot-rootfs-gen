@@ -1,1 +1,3 @@
-deb http://packages.jaia.tech/ubuntu/continuous/1.y/ @DISTRIBUTION@/
+#deb http://packages.jaia.tech/ubuntu/continuous/1.y/ @DISTRIBUTION@/
+#deb http://packages.jaia.tech/ubuntu/beta/1.y/ @DISTRIBUTION@/
+deb http://packages.jaia.tech/ubuntu/release/1.y/ @DISTRIBUTION@/
