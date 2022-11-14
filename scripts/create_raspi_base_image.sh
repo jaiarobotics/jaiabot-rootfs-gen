@@ -158,13 +158,13 @@ fi
 echo "Building bootable Raspberry Pi image in $WORKDIR"
 cd "$WORKDIR"
 
-# Create a 12.6 GiB image
+# Create a 16.6 GiB image
 SD_IMAGE_PATH="$OUTPUT_IMAGE_PATH"
-dd if=/dev/zero of="$SD_IMAGE_PATH" bs=1048576 count=12600 conv=sparse status=none
+dd if=/dev/zero of="$SD_IMAGE_PATH" bs=1048576 count=16600 conv=sparse status=none
 
 # Apply the partition map
 # 256 MB boot
-# 4 GB underlay ro rootfs
+# 8 GB underlay ro rootfs
 # 8 GB overlay upper rw
 # 200 MB (to resize to fill disk) log partition 
 sfdisk --quiet "$SD_IMAGE_PATH" <<EOF
@@ -173,9 +173,9 @@ device: /dev/sdc
 unit: sectors
 
 /dev/sdc1 : start=        8192, size=      524288, type=c, bootable
-/dev/sdc2 : start=      532480, size=     8388608, type=83
-/dev/sdc3 : start=     8921088, size=    16777216, type=83
-/dev/sdc4 : start=    25698304, size=      409600, type=83
+/dev/sdc2 : start=      532480, size=    16777216, type=83
+/dev/sdc3 : start=    17309696, size=    16777216, type=83
+/dev/sdc4 : start=    34086912, size=      409600, type=83
 EOF
 
 # Set up loop device for the partitions
