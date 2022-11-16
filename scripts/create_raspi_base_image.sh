@@ -158,9 +158,9 @@ fi
 echo "Building bootable Raspberry Pi image in $WORKDIR"
 cd "$WORKDIR"
 
-# Create a 13.6 GiB image
+# Create a 14.0 GiB image
 SD_IMAGE_PATH="$OUTPUT_IMAGE_PATH"
-dd if=/dev/zero of="$SD_IMAGE_PATH" bs=1048576 count=13600 conv=sparse status=none
+dd if=/dev/zero of="$SD_IMAGE_PATH" bs=1048576 count=14000 conv=sparse status=none
 
 # Apply the partition map
 # 256 MB boot
