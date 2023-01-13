@@ -89,19 +89,20 @@ function finish {
     reset_binfmt_rules
   
     # Unmount the partitions
-    sudo umount "$ROOTFS_PARTITION"/boot/firmware
-    sudo umount "$ROOTFS_PARTITION"/dev/pts
-    sudo umount "$ROOTFS_PARTITION"/dev
-    sudo umount "$ROOTFS_PARTITION"/proc
-    sudo umount "$ROOTFS_PARTITION"/sys
-    sudo umount "$ROOTFS_PARTITION"
-    sudo umount "$BOOT_PARTITION"
-
-    # Detach the loop devices
-    detach_image "$SD_IMAGE_PATH"
-    
-    # Remove the scratch directory
-    [ -z "$DEBUG" ] && cd / && rm -Rf "$WORKDIR"
+    [ -z "$DEBUG" ] &&
+        ( sudo umount "$ROOTFS_PARTITION"/boot/firmware
+          sudo umount "$ROOTFS_PARTITION"/dev/pts
+          sudo umount "$ROOTFS_PARTITION"/dev
+          sudo umount "$ROOTFS_PARTITION"/proc
+          sudo umount "$ROOTFS_PARTITION"/sys
+          sudo umount "$ROOTFS_PARTITION"
+          sudo umount "$BOOT_PARTITION"
+          
+          # Detach the loop devices
+          detach_image "$SD_IMAGE_PATH"
+          # Remove the scratch directory
+          cd / && rm -Rf "$WORKDIR"
+        )
   ) &>/dev/null || true
 }
 trap finish EXIT
@@ -186,6 +187,8 @@ EOF
 
 # Set up loop device for the partitions
 attach_image "$SD_IMAGE_PATH" BOOT_DEV ROOTFS_DEV OVERLAY_DEV DATA_DEV
+
+DISK_DEV=$(echo "$BOOT_DEV" | sed 's|mapper/\(loop[0-9]*\).*|\1|')
 
 # Format the partitions
 sudo mkfs.vfat -F 32 -n boot "$BOOT_DEV"
@@ -292,13 +295,30 @@ sudo mount -o bind /dev/pts "$ROOTFS_PARTITION"/dev/pts
 sudo mount -o bind /proc "$ROOTFS_PARTITION"/proc
 sudo mount -o bind /sys "$ROOTFS_PARTITION"/sys
 
-if [ ! -z "$VIRTUALBOX" ]; then    
+if [ ! -z "$VIRTUALBOX" ]; then
+
+    # TODO - remove!!
+    sudo chroot rootfs sed -i  's/archive.ubuntu/au.archive.ubuntu/' /etc/apt/sources.list
+    sudo chroot rootfs sed -i  's/.*security.ubuntu.*//' /etc/apt/sources.list
+    
+    sudo chroot rootfs apt-get update
+
+    set -x
     sudo chroot rootfs apt-get -y install linux-image-generic
+    sudo chroot rootfs grub-install "$DISK_DEV"
+
+    # unmount all the image partitions first
+    finish
+    
     OUTPUT_IMAGE_IMG=$(echo $OUTPUT_IMAGE_PATH | sed "s/\.vdi$/\.img/")
     [[ "$OUTPUT_IMAGE_IMG" != "$OUTPUT_IMAGE_PATH" ]] && mv $OUTPUT_IMAGE_PATH $OUTPUT_IMAGE_IMG
     
     OUTPUT_IMAGE_VDI=$(echo $OUTPUT_IMAGE_PATH | sed "s/\.img$/\.vdi/")
     VBoxManage convertdd $OUTPUT_IMAGE_IMG $OUTPUT_IMAGE_VDI
+    VBoxManage modifyhd $OUTPUT_IMAGE_VDI --resize 32000
+
+    # TODO - remove!!
+    sudo chown toby:toby $OUTPUT_IMAGE_VDI
     
     echo "Virtualbox VDI created at $OUTPUT_IMAGE_VDI, img at $OUTPUT_IMAGE_IMG"
 else
