@@ -55,14 +55,13 @@ jobs:
           name: Create base SD card image for VirtualBox
           command: >-
             mkdir images &&
-            sudo scripts/create_raspi_base_image.sh --dest images/base_image.img --virtualbox
+            ROOTFS_BUILD_TAG="$(git describe --tags HEAD | sed 's/_/~/' | sed 's/-/+/g')" &&          
+            sudo scripts/create_raspi_base_image.sh --dest images/jaiabot_"$CIRCLE_BRANCH"_img-"$ROOTFS_BUILD_TAG".img --virtualbox
       - run:
-          name: Rename image
+          name: Move image for storage
           command: >-
             mkdir vbox &&
-            sudo chmod a+rwx images/base_image.ova &&
-            ROOTFS_BUILD_TAG="$(git describe --tags HEAD | sed 's/_/~/' | sed 's/-/+/g')" &&          
-            mv images/base_image.ova \
-               vbox/jaiabot_"$CIRCLE_BRANCH"_img-"$ROOTFS_BUILD_TAG".ova
+            sudo chmod a+rwx images/*.ova &&
+            mv images/*.ova vbox/
       - store_artifacts:
           path: vbox/
