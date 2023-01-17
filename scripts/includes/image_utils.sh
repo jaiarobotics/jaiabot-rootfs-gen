@@ -105,7 +105,7 @@ function create_virtualbox {
     # Set memory and network
     VBoxManage modifyvm $MACHINENAME --ioapic on
     VBoxManage modifyvm $MACHINENAME --memory 1024 --vram 128
-    VBoxManage modifyvm $MACHINENAME --nic1 bridged
+    VBoxManage modifyvm $MACHINENAME --nic1 nat
     VBoxManage modifyvm $MACHINENAME --nic2 intnet
     VBoxManage modifyvm $MACHINENAME --intnet2 "jaiabotfleet"
     # Create Disk and connect Debian Iso

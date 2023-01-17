@@ -59,12 +59,9 @@ jobs:
       - run:
           name: Rename image
           command: >-
+            mkdir vbox
             ROOTFS_BUILD_TAG="$(git describe --tags HEAD | sed 's/_/~/' | sed 's/-/+/g')" &&          
-            mv images/base_image.vdi \
-               images/jaiabot_"$CIRCLE_BRANCH"_img-"$ROOTFS_BUILD_TAG".vdi &&
             mv images/base_image.ova \
-               images/jaiabot_"$CIRCLE_BRANCH"_img-"$ROOTFS_BUILD_TAG".ova
-            # no need to store raw image
-            rm images/base_image.img
+               vbox/jaiabot_"$CIRCLE_BRANCH"_img-"$ROOTFS_BUILD_TAG".ova
       - store_artifacts:
-          path: images/
+          path: vbox/
