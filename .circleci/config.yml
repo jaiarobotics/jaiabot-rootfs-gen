@@ -4,6 +4,7 @@ workflows:
   commit:
     jobs:
       - raspi-image-create      
+      - virtualbox-image-create
   nightly:
     triggers:
       - schedule:
