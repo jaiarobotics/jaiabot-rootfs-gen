@@ -93,3 +93,26 @@ function attach_image {
 function detach_image {
   sudo kpartx -d "$1"
 }
+
+
+function create_virtualbox {
+    DISK=$1
+    MACHINENAME="$(basename ${DISK%.*})"
+    OVA=$(echo $DISK | sed "s/\.vdi$/\.ova/")
+    
+    # Create VM
+    VBoxManage createvm --name $MACHINENAME --ostype "Ubuntu_64" --register --basefolder="$(dirname ${DISK})"
+    # Set memory and network
+    VBoxManage modifyvm $MACHINENAME --ioapic on
+    VBoxManage modifyvm $MACHINENAME --memory 1024 --vram 128
+    VBoxManage modifyvm $MACHINENAME --nic1 bridged
+    VBoxManage modifyvm $MACHINENAME --nic2 intnet
+    VBoxManage modifyvm $MACHINENAME --intnet2 "jaiabotfleet"
+    # Create Disk and connect Debian Iso
+    VBoxManage storagectl $MACHINENAME --name "SATA Controller" --add sata --controller IntelAhci --portcount 2
+    VBoxManage storageattach $MACHINENAME --storagectl "SATA Controller" --port 0 --device 0 --type hdd --medium  $DISK
+    VBoxManage modifyvm $MACHINENAME --boot1 disk --boot2 none --boot3 none --boot4 none
+
+    echo "Exporting VM to ${OVA}"
+    VBoxManage export $MACHINENAME --output "${OVA}"
+}

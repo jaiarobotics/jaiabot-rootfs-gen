@@ -21,5 +21,6 @@ lb config noauto \
  --system normal
 
 cp -rf customization/* config/
-
 rm config/package-lists/raspi.list.chroot
+
+cp -rf virtualbox/* config/

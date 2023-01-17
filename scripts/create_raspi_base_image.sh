@@ -207,7 +207,7 @@ sudo mount "$ROOTFS_DEV" "$ROOTFS_PARTITION"
 if [ -z "$ROOTFS_TARBALL" ]; then
     # Build the rootfs
     mkdir rootfs-build
-    cp -r "$ROOTFS_BUILD_PATH"/auto "$ROOTFS_BUILD_PATH"/customization rootfs-build
+    cp -r "$ROOTFS_BUILD_PATH"/auto "$ROOTFS_BUILD_PATH"/customization "$ROOTFS_BUILD_PATH"/virtualbox rootfs-build
     cd rootfs-build
     # remove any existing cached data
     rm -rf cache
@@ -284,7 +284,7 @@ dtoverlay=spi1-3cs
 
 EOF
 cat > "$BOOT_PARTITION"/cmdline.txt <<EOF
-console=tty1 root=LABEL=rootfs rootfstype=ext4 fsck.repair=yes rootwait fixrtc net.ifnames=0 dwc_otg.lpm_enable=0 overlayroot=disabled
+console=tty1 root=LABEL=rootfs rootfstype=ext4 fsck.repair=yes rootwait fixrtc net.ifnames=0 dwc_otg.lpm_enable=0
 EOF
 
 # Flash the kernel
@@ -295,16 +295,18 @@ sudo mount -o bind /dev/pts "$ROOTFS_PARTITION"/dev/pts
 sudo mount -o bind /proc "$ROOTFS_PARTITION"/proc
 sudo mount -o bind /sys "$ROOTFS_PARTITION"/sys
 
+# Persist the rootfs in case we want it
+OUTPUT_ROOTFS_TARBALL=$(echo $OUTPUT_IMAGE_PATH | sed "s/\.img$/\.tar.gz/")
+cp "${ROOTFS_TARBALL}" "${OUTPUT_ROOTFS_TARBALL}"
+
 if [ ! -z "$VIRTUALBOX" ]; then
-
-    # TODO - remove!!
-    sudo chroot rootfs sed -i  's/archive.ubuntu/au.archive.ubuntu/' /etc/apt/sources.list
-    sudo chroot rootfs sed -i  's/.*security.ubuntu.*//' /etc/apt/sources.list
-    
-    sudo chroot rootfs apt-get update
-
-    set -x
     sudo chroot rootfs apt-get -y install linux-image-generic
+    
+    # ensure VM uses eth0, etc. naming like Raspi
+    sudo chroot rootfs sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT=.*/GRUB_CMDLINE_LINUX_DEFAULT="net.ifnames=0 biosdevname=0"/' /etc/default/grub
+
+    # install grub boot loader
+    sudo chroot rootfs update-grub
     sudo chroot rootfs grub-install "$DISK_DEV"
 
     # unmount all the image partitions first
@@ -318,11 +320,13 @@ if [ ! -z "$VIRTUALBOX" ]; then
     VBoxManage modifyhd $OUTPUT_IMAGE_VDI --resize 32000
 
     # TODO - remove!!
-    sudo chown toby:toby $OUTPUT_IMAGE_VDI
+    sudo chown 1000:1000 $OUTPUT_IMAGE_VDI
+
+    # Turn the VDI disk into a full VM
+    create_virtualbox $OUTPUT_IMAGE_VDI
     
     echo "Virtualbox VDI created at $OUTPUT_IMAGE_VDI, img at $OUTPUT_IMAGE_IMG"
 else
     sudo chroot rootfs apt-get -y install linux-image-raspi
     echo "Raspberry Pi image created at $OUTPUT_IMAGE_PATH"
 fi
-   
