@@ -156,7 +156,7 @@ if [[ "$NATIVE" == "1" ]]; then
     fi
 elif [ ! -z "$VIRTUALBOX" ]; then
     # No need for QEMU on Virtualbox
-    
+    :
 elif ! enable_binfmt_rule qemu-aarch64; then
     # Test that executing foreign binaries under QEMU will work
     echo "This system cannot execute ARM binaries under QEMU" >&2
