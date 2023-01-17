@@ -59,7 +59,8 @@ jobs:
       - run:
           name: Rename image
           command: >-
-            mkdir vbox
+            mkdir vbox &&
+            sudo chmod a+rwx images/base_image.ova &&
             ROOTFS_BUILD_TAG="$(git describe --tags HEAD | sed 's/_/~/' | sed 's/-/+/g')" &&          
             mv images/base_image.ova \
                vbox/jaiabot_"$CIRCLE_BRANCH"_img-"$ROOTFS_BUILD_TAG".ova
