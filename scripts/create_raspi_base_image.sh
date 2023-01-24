@@ -327,8 +327,10 @@ if [ ! -z "$VIRTUALBOX" ]; then
 
     # Turn the VDI disk into a full VM
     create_virtualbox $OUTPUT_IMAGE_VDI
+
+    OUTPUT_IMAGE_OVA=$(echo $OUTPUT_IMAGE_VDI | sed "s/\.vdi$/\.ova/")
     
-    echo "Virtualbox VDI created at $OUTPUT_IMAGE_VDI, img at $OUTPUT_IMAGE_IMG"
+    echo "Virtualbox OVA created at $OUTPUT_IMAGE_OVA, VDI created at $OUTPUT_IMAGE_VDI, img at $OUTPUT_IMAGE_IMG"
 else
     sudo chroot rootfs apt-get -y install linux-image-raspi
     echo "Raspberry Pi image created at $OUTPUT_IMAGE_PATH"
