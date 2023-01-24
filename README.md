@@ -17,6 +17,13 @@ sudo apt install live-build qemu-user-static
 Creates (in current working directory) jaiabot_img-{version}.img (can be installed with `dd` or similar):
 
 ```
-sudo jaiabot-rootfs-gen/scripts/master_raspi_base_image.sh
+sudo jaiabot-rootfs-gen/scripts/create_raspi_base_image.sh
 ```
 
+## VirtualBox image
+
+As an alternative to the Raspberry Pi image, an `amd64` virtual machine can be created for use with VirtualBox by running
+
+```
+sudo jaiabot-rootfs-gen/scripts/create_raspi_base_image.sh --virtualbox
+```

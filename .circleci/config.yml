@@ -15,6 +15,7 @@ workflows:
                 - /.*/
     jobs:
       - raspi-image-create
+      - virtualbox-image-create
 
 jobs:
   raspi-image-create:
