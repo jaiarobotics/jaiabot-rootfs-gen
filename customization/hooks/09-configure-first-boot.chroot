@@ -12,3 +12,5 @@ if [[ "\${JAIABOT_OVERLAY}" == "false" ]]; then
 	export PS1="[\[\e[31m\]OVERLAY DISK NOT MOUNTED\[\e[m\]] \u@\h:\w\$ "
 fi
 EOF
+
+systemctl enable jaiabot_first_boot.service
