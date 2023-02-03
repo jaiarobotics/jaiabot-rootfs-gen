@@ -12,6 +12,7 @@ Wants=first-boot-complete.target
 Type=oneshot
 RemainAfterExit=true
 ExecStart=/etc/jaiabot/init/first-boot.sh
+StandardOutput=journal+console
 
 [Install]
 WantedBy=multi-user.target

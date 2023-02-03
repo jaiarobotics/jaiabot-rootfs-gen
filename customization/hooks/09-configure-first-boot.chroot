@@ -13,4 +13,4 @@ if [[ "\${JAIABOT_OVERLAY}" == "false" ]]; then
 fi
 EOF
 
-systemctl enable jaiabot_first_boot.service
+systemctl enable first_boot.service
