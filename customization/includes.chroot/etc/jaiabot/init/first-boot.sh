@@ -6,6 +6,12 @@ set -e -u
 # on first boot
 # 
 
+USING_PRESEED=false
+if [ -e /etc/jaiabot/init/first-boot.preseed ]; then
+   USING_PRESEED=true
+	
+fi
+
 source /etc/jaiabot/init/include/wt_tools.sh
 
 if [ ! "$UID" -eq 0 ]; then 

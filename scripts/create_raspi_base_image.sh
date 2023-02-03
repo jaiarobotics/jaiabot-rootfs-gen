@@ -308,6 +308,10 @@ if [ ! -z "$VIRTUALBOX" ]; then
     # ensure VM uses eth0, etc. naming like Raspi
     sudo chroot rootfs sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT=.*/GRUB_CMDLINE_LINUX_DEFAULT="net.ifnames=0 biosdevname=0"/' /etc/default/grub
 
+    # reduce grub timeout
+    sudo chroot rootfs sed -i 's/GRUB_TIMEOUT_STYLE=\(.*\)/#GRUB_TIMEOUT_STYLE=\1/' /etc/default/grub
+    sudo chroot rootfs sed -i 's/GRUB_TIMEOUT=.*/GRUB_TIMEOUT=3/' /etc/default/grub
+
     # install grub boot loader
     sudo chroot rootfs update-grub
     sudo chroot rootfs grub-install "$DISK_DEV"
