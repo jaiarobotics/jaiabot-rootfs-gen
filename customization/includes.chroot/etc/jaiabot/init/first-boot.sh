@@ -150,6 +150,7 @@ if [[ "$do_install" = "true" ]]; then
    fi
    if dpkg -s jaiabot-embedded; then
        # if it's already installed, reconfigure
+       export DEBIAN_FRONTEND=noninteractive
        dpkg-reconfigure jaiabot-embedded;
    else
        # otherwise install it
