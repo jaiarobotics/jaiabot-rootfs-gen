@@ -1,16 +1,16 @@
 [Unit]
 Description=Jaia First Boot
 
-ConditionFirstBoot=true
 # Only run if preseeded
 ConditionPathExists=/etc/jaiabot/init/first-boot.preseed
-
-Before=first-boot-complete.target
-Wants=first-boot-complete.target
 
 [Service]
 Type=oneshot
 RemainAfterExit=true
+
+# required for systemd.py to install the correct User and Group for jaiabot services
+Environment=USER=jaia
+
 ExecStart=/etc/jaiabot/init/first-boot.sh
 StandardOutput=journal+console
 

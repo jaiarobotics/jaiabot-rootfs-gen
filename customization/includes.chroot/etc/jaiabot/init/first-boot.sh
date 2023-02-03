@@ -170,5 +170,11 @@ echo "JAIABOT_FIRST_BOOT_DATE=\"`date -u`\"" >> /etc/jaiabot/version
 
 # Finish
 
+
+if [[ "$USING_PRESEED" = "true" ]]; then
+    # avoid re-running with same preseed
+    mv /etc/jaiabot/init/first-boot.preseed /etc/jaiabot/init/first-boot.preseed.complete
+fi
+
 run_wt_yesno jaia_reboot "First boot provisioning complete" \
              "\nDo you want to reboot into the complete system?" && reboot
