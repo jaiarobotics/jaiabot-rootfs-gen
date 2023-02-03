@@ -148,7 +148,13 @@ if [[ "$do_install" = "true" ]]; then
        echo "$jaia_embedded_debconf" | debconf-set-selections -
        debconf-get-selections | grep jaia
    fi
-   apt install -y /opt/jaiabot-embedded*.deb;
+   if dpkg -s jaiabot-embedded; then
+       # if it's already installed, reconfigure
+       dpkg-reconfigure jaiabot-embedded;
+   else
+       # otherwise install it
+       apt install -y /opt/jaiabot-embedded*.deb;
+   fi
 fi
    
 echo "###############################################################"
