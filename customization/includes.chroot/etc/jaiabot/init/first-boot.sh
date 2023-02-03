@@ -178,3 +178,5 @@ fi
 
 run_wt_yesno jaia_reboot "First boot provisioning complete" \
              "\nDo you want to reboot into the complete system?" && reboot
+
+return 0
