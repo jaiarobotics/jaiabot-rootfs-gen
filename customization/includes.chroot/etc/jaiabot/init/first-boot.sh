@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e -u 
+set -e -u
 
 # 
 # This script configures the new image. It should only be run once 
@@ -9,7 +9,7 @@ set -e -u
 USING_PRESEED=false
 if [ -e /etc/jaiabot/init/first-boot.preseed ]; then
    USING_PRESEED=true
-	
+   source /etc/jaiabot/init/first-boot.preseed
 fi
 
 source /etc/jaiabot/init/include/wt_tools.sh
@@ -26,13 +26,14 @@ echo "###########################################"
 echo "###########################################"
 
 source /etc/jaiabot/version
-run_wt_yesno "JaiaBot First Boot" "Image Version: $JAIABOT_IMAGE_VERSION.\nThis is the first boot of the machine since this image was written.\n\nDo you want to run the first-boot setup (RECOMMENDED)?" || exit 0
+run_wt_yesno jaia_run_first_boot "JaiaBot First Boot" "Image Version: $JAIABOT_IMAGE_VERSION.\nThis is the first boot of the machine since this image was written.\n\nDo you want to run the first-boot setup (RECOMMENDED)?" || exit 0
 
 echo "######################################################"
 echo "## Set Password                                     ##"
 echo "######################################################"
 
-run_wt_password "Password" "Enter a new password for jaia"
+random_pw=$(openssl rand -base64 30)
+run_wt_password random_pw "Password" "Enter a new password for jaia"
 [ $? -eq 0 ] || exit 1
 echo "jaia:$WT_PASSWORD" | chpasswd
 
@@ -68,7 +69,7 @@ echo "###############################################################"
 echo "## Stress Tests                                              ##" 
 echo "###############################################################"
 
-run_wt_yesno "Hardware checks and stress test" \
+run_wt_yesno jaia_stress_tests "Hardware checks and stress test" \
              "Do you want to run the hardware checks and stress test?" && source /etc/jaiabot/init/board-check.sh
 
 echo "###############################################"
@@ -90,18 +91,18 @@ echo "###############################################"
 echo "## Setting up wifi                           ##"
 echo "###############################################"
 
-run_wt_yesno "Wired ethernet (eth0)" \
+run_wt_yesno jaia_disable_ethernet "Wired ethernet (eth0)" \
              "Do you want to disable the wired Ethernet interface (eth0)?" && sed -i 's/^ *auto eth0/#auto eth0/' /etc/network/interfaces.d/eth0
 
 
-run_wt_yesno "Wireless ethernet (wlan0)" \
+run_wt_yesno jaia_configure_wifi "Wireless ethernet (wlan0)" \
              "Do you want to configure the wireless Ethernet interface (wlan0)?" &&
 (
-run_wt_inputbox "wlan0 SSID" \
+run_wt_inputbox jaia_wifi_ssid "wlan0 SSID" \
             "Enter wlan0 SSID"
 wlan_ssid=${WT_TEXT}
 
-run_wt_inputbox "SSID Password" \
+run_wt_inputbox jaia_wifi_password "SSID Password" \
                 "Enter the password for SSID ${wlan_ssid}"
 wlan_password=${WT_TEXT}
 
@@ -140,8 +141,16 @@ echo "###############################################"
 echo "## Install jaiabot-embedded package          ##"
 echo "###############################################"
 
-run_wt_yesno "Install jaiabot-embedded package" "\nDo you want to install and configure the jaiabot-embedded Debian package?" && apt install -y /opt/jaiabot-embedded*.deb
+run_wt_yesno jaia_install_jaiabot_embedded "Install jaiabot-embedded package" "\nDo you want to install and configure the jaiabot-embedded Debian package?" && do_install=true
 
+if [[ "$do_install" = "true" ]]; then
+   if [[ "$USING_PRESEED" = "true" ]]; then
+       echo "$jaia_embedded_debconf" | debconf-set-selections -
+       debconf-get-selections | grep jaia
+   fi
+   apt install -y /opt/jaiabot-embedded*.deb;
+fi
+   
 echo "###############################################################"
 echo "## Removing first-boot hooks so that this does not run again ##"
 echo "###############################################################"
@@ -154,5 +163,5 @@ echo "JAIABOT_FIRST_BOOT_DATE=\"`date -u`\"" >> /etc/jaiabot/version
 
 # Finish
 
-run_wt_yesno "First boot provisioning complete" \
+run_wt_yesno jaia_reboot "First boot provisioning complete" \
              "\nDo you want to reboot into the complete system?" && reboot
