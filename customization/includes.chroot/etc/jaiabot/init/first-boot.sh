@@ -118,6 +118,11 @@ iface wlan0 inet static
    gateway 10.23.XXX.1
 
 EOF
+
+# for real ethernet acting as wlan0 (VirtualBox)
+if [[ "${wlan_ssid}" = "" || "${wlan_ssid}" = "dummy" ]]; then
+    sed -i 's/\(.*wpa.*\)/# \1/' /etc/network/interfaces.d/wlan0
+fi
 )
 
 echo "###############################################"
