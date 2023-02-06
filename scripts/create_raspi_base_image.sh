@@ -310,7 +310,7 @@ if [ ! -z "$VIRTUALBOX" ]; then
 
     # reduce grub timeout
     sudo chroot rootfs sed -i 's/GRUB_TIMEOUT_STYLE=\(.*\)/#GRUB_TIMEOUT_STYLE=\1/' /etc/default/grub
-    sudo chroot rootfs sed -i 's/GRUB_TIMEOUT=.*/GRUB_TIMEOUT=3/' /etc/default/grub
+    sudo chroot rootfs sed -i 's/GRUB_TIMEOUT=.*/GRUB_TIMEOUT=3\nGRUB_RECORDFAIL_TIMEOUT=3/' /etc/default/grub
 
     # install grub boot loader
     sudo chroot rootfs update-grub

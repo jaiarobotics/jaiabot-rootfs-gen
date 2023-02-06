@@ -34,7 +34,7 @@ jaia_stress_tests=false
 ########################################################
 # Network
 ########################################################
-jaia_disable_ethernet=false
+jaia_disable_ethernet=true
 jaia_configure_wifi=true
 jaia_wifi_ssid=dummy
 jaia_wifi_password=dummy
