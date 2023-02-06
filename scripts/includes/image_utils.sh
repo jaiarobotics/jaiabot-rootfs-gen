@@ -112,7 +112,8 @@ function create_virtualbox {
     VBoxManage storagectl $MACHINENAME --name "SATA Controller" --add sata --controller IntelAhci --portcount 2
     VBoxManage storageattach $MACHINENAME --storagectl "SATA Controller" --port 0 --device 0 --type hdd --medium  $DISK
     VBoxManage modifyvm $MACHINENAME --boot1 disk --boot2 none --boot3 none --boot4 none
-
+    VBoxManage modifyvm $MACHINENAME --usb-xhci on
+    
     echo "Exporting VM to ${OVA}"
     VBoxManage export $MACHINENAME --output "${OVA}"
 }
