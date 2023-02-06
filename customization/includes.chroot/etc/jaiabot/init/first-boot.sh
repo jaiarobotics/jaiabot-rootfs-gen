@@ -60,6 +60,7 @@ echo -e "\nResizing filesystem: $JAIABOT_DATA_PARTITION\n"
 # btrfs filesystem resize requires mount point as the argument
 (set -x; btrfs filesystem resize max $JAIABOT_DATA_MOUNTPOINT)
 
+mkdir -p /var/log/jaiabot
 # allow jaia user to write logs
 chown -R jaia:jaia /var/log/jaiabot
 
