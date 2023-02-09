@@ -266,6 +266,7 @@ dtparam=spi=on
 cmdline=cmdline.txt
 
 # jaiabot
+dtoverlay=disable-bt
 dtoverlay=uart3,txd3_pin=7,rxd3_pin=29
 dtoverlay=uart4,txd4_pin=24,rxd4_pin=21
 dtoverlay=uart5,txd5_pin=32,rxd5_pin=33
