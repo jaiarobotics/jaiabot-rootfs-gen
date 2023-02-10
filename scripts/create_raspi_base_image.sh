@@ -46,6 +46,9 @@
 #     --native
 #         Run on native aarch64 hardware, rather than emulate building with QEMU
 #
+#     --virtualbox
+#         Create an amd64 virtualbox VDI, rather than a Raspi SD card image (but otherwise create a very similar image)
+#
 # This script is invoked by the raspi-image-master job in the cgsn_mooring
 # project's CircleCI but can also be invoked directly.
 #
@@ -86,19 +89,20 @@ function finish {
     reset_binfmt_rules
   
     # Unmount the partitions
-    sudo umount "$ROOTFS_PARTITION"/boot/firmware
-    sudo umount "$ROOTFS_PARTITION"/dev/pts
-    sudo umount "$ROOTFS_PARTITION"/dev
-    sudo umount "$ROOTFS_PARTITION"/proc
-    sudo umount "$ROOTFS_PARTITION"/sys
-    sudo umount "$ROOTFS_PARTITION"
-    sudo umount "$BOOT_PARTITION"
-
-    # Detach the loop devices
-    detach_image "$SD_IMAGE_PATH"
-    
-    # Remove the scratch directory
-    [ -z "$DEBUG" ] && cd / && rm -Rf "$WORKDIR"
+    [ -z "$DEBUG" ] &&
+        ( sudo umount "$ROOTFS_PARTITION"/boot/firmware
+          sudo umount "$ROOTFS_PARTITION"/dev/pts
+          sudo umount "$ROOTFS_PARTITION"/dev
+          sudo umount "$ROOTFS_PARTITION"/proc
+          sudo umount "$ROOTFS_PARTITION"/sys
+          sudo umount "$ROOTFS_PARTITION"
+          sudo umount "$BOOT_PARTITION"
+          
+          # Detach the loop devices
+          detach_image "$SD_IMAGE_PATH"
+          # Remove the scratch directory
+          cd / && rm -Rf "$WORKDIR"
+        )
   ) &>/dev/null || true
 }
 trap finish EXIT
@@ -136,6 +140,9 @@ while [[ $# -gt 0 ]]; do
   --native)
     NATIVE=1
     ;;
+  --virtualbox)
+    VIRTUALBOX=1
+    ;;
   *)
     echo "Unexpected argument: $KEY" >&2
     exit 1
@@ -147,6 +154,9 @@ if [[ "$NATIVE" == "1" ]]; then
         echo "This system is not suitable for a native build"
         exit 1
     fi
+elif [ ! -z "$VIRTUALBOX" ]; then
+    # No need for QEMU on Virtualbox
+    :
 elif ! enable_binfmt_rule qemu-aarch64; then
     # Test that executing foreign binaries under QEMU will work
     echo "This system cannot execute ARM binaries under QEMU" >&2
@@ -181,6 +191,8 @@ EOF
 # Set up loop device for the partitions
 attach_image "$SD_IMAGE_PATH" BOOT_DEV ROOTFS_DEV OVERLAY_DEV DATA_DEV
 
+DISK_DEV=$(echo "$BOOT_DEV" | sed 's|mapper/\(loop[0-9]*\).*|\1|')
+
 # Format the partitions
 sudo mkfs.vfat -F 32 -n boot "$BOOT_DEV"
 sudo mkfs.ext4 -L rootfs "$ROOTFS_DEV"
@@ -198,12 +210,14 @@ sudo mount "$ROOTFS_DEV" "$ROOTFS_PARTITION"
 if [ -z "$ROOTFS_TARBALL" ]; then
     # Build the rootfs
     mkdir rootfs-build
-    cp -r "$ROOTFS_BUILD_PATH"/auto "$ROOTFS_BUILD_PATH"/customization rootfs-build
+    cp -r "$ROOTFS_BUILD_PATH"/auto "$ROOTFS_BUILD_PATH"/customization "$ROOTFS_BUILD_PATH"/virtualbox rootfs-build
     cd rootfs-build
     # remove any existing cached data
     rm -rf cache
     lb clean
     [ -z "$NATIVE" ] && cp auto/config.qemu auto/config || cp auto/config.native auto/config
+    [ ! -z "$VIRTUALBOX" ] && cp auto/config.virtualbox auto/config
+    
     lb config
     mkdir -p config/includes.chroot/etc/jaiabot
     chmod 775 config/includes.chroot/etc/jaiabot
@@ -273,7 +287,7 @@ dtoverlay=spi1-3cs
 
 EOF
 cat > "$BOOT_PARTITION"/cmdline.txt <<EOF
-console=tty1 root=LABEL=rootfs rootfstype=ext4 fsck.repair=yes rootwait fixrtc net.ifnames=0 dwc_otg.lpm_enable=0 overlayroot=disabled
+console=tty1 root=LABEL=rootfs rootfstype=ext4 fsck.repair=yes rootwait fixrtc net.ifnames=0 dwc_otg.lpm_enable=0
 EOF
 
 # Flash the kernel
@@ -284,7 +298,40 @@ sudo mount -o bind /dev/pts "$ROOTFS_PARTITION"/dev/pts
 sudo mount -o bind /proc "$ROOTFS_PARTITION"/proc
 sudo mount -o bind /sys "$ROOTFS_PARTITION"/sys
 
-sudo chroot rootfs apt-get -y install linux-image-raspi
+# Persist the rootfs in case we want it
+OUTPUT_ROOTFS_TARBALL=$(echo $OUTPUT_IMAGE_PATH | sed "s/\.img$/\.tar.gz/")
+cp "${ROOTFS_TARBALL}" "${OUTPUT_ROOTFS_TARBALL}"
 
-# Fin.
-echo "Raspberry Pi image created at $OUTPUT_IMAGE_PATH"
+if [ ! -z "$VIRTUALBOX" ]; then
+    sudo chroot rootfs apt-get -y install linux-image-generic
+    
+    # ensure VM uses eth0, etc. naming like Raspi
+    sudo chroot rootfs sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT=.*/GRUB_CMDLINE_LINUX_DEFAULT="net.ifnames=0 biosdevname=0"/' /etc/default/grub
+
+    # install grub boot loader
+    sudo chroot rootfs update-grub
+    sudo chroot rootfs grub-install "$DISK_DEV"
+
+    # unmount all the image partitions first
+    finish
+    
+    OUTPUT_IMAGE_IMG=$(echo $OUTPUT_IMAGE_PATH | sed "s/\.vdi$/\.img/")
+    [[ "$OUTPUT_IMAGE_IMG" != "$OUTPUT_IMAGE_PATH" ]] && mv $OUTPUT_IMAGE_PATH $OUTPUT_IMAGE_IMG
+    
+    OUTPUT_IMAGE_VDI=$(echo $OUTPUT_IMAGE_PATH | sed "s/\.img$/\.vdi/")
+    VBoxManage convertdd $OUTPUT_IMAGE_IMG $OUTPUT_IMAGE_VDI
+    VBoxManage modifyhd $OUTPUT_IMAGE_VDI --resize 32000
+
+    # TODO - remove!!
+    sudo chown 1000:1000 $OUTPUT_IMAGE_VDI
+
+    # Turn the VDI disk into a full VM
+    create_virtualbox $OUTPUT_IMAGE_VDI
+
+    OUTPUT_IMAGE_OVA=$(echo $OUTPUT_IMAGE_VDI | sed "s/\.vdi$/\.ova/")
+    
+    echo "Virtualbox OVA created at $OUTPUT_IMAGE_OVA, VDI created at $OUTPUT_IMAGE_VDI, img at $OUTPUT_IMAGE_IMG"
+else
+    sudo chroot rootfs apt-get -y install linux-image-raspi
+    echo "Raspberry Pi image created at $OUTPUT_IMAGE_PATH"
+fi
