@@ -4,6 +4,7 @@ workflows:
   commit:
     jobs:
       - raspi-image-create      
+      - virtualbox-image-create
   nightly:
     triggers:
       - schedule:
@@ -14,11 +15,12 @@ workflows:
                 - /.*/
     jobs:
       - raspi-image-create
+      - virtualbox-image-create
 
 jobs:
   raspi-image-create:
     machine:
-      image: ubuntu-2004:202101-01
+      image: ubuntu-2004:current
     resource_class: arm.medium
     steps:
       - checkout
@@ -41,3 +43,26 @@ jobs:
           command: pigz images/*.img
       - store_artifacts:
           path: images/
+  virtualbox-image-create:
+    machine:
+      image: ubuntu-2004:current
+    resource_class: medium
+    steps:
+      - checkout
+      - run:
+          name: Install apt dependencies
+          command: sudo apt-get update && sudo apt-get -y install pigz dosfstools gcc-aarch64-linux-gnu git kpartx live-build sudo wget virtualbox
+      - run:
+          name: Create base SD card image for VirtualBox
+          command: >-
+            mkdir images &&
+            ROOTFS_BUILD_TAG="$(git describe --tags HEAD | sed 's/_/~/' | sed 's/-/+/g')" &&          
+            sudo scripts/create_raspi_base_image.sh --dest images/jaiabot_"$CIRCLE_BRANCH"_img-"$ROOTFS_BUILD_TAG".img --virtualbox
+      - run:
+          name: Move image for storage
+          command: >-
+            mkdir vbox &&
+            sudo chmod a+rwx images/*.ova &&
+            mv images/*.ova vbox/
+      - store_artifacts:
+          path: vbox/
