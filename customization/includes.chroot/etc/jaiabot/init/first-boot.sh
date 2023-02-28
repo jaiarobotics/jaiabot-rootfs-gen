@@ -7,9 +7,9 @@ set -e -u
 # 
 
 USING_PRESEED=false
-if [ -e /etc/jaiabot/init/first-boot.preseed ]; then
+if [ -e /boot/firmware/jaiabot/init/first-boot.preseed ]; then
    USING_PRESEED=true
-   source /etc/jaiabot/init/first-boot.preseed
+   source /boot/firmware/jaiabot/init/first-boot.preseed
 fi
 
 source /etc/jaiabot/init/include/wt_tools.sh
@@ -179,7 +179,9 @@ echo "JAIABOT_FIRST_BOOT_DATE=\"`date -u`\"" >> /etc/jaiabot/version
 
 if [[ "$USING_PRESEED" = "true" ]]; then
     # avoid re-running with same preseed
-    mv /etc/jaiabot/init/first-boot.preseed /etc/jaiabot/init/first-boot.preseed.complete
+    mount -o remount,rw /boot/firmware
+    mv /boot/firmware/jaiabot/init/first-boot.preseed /boot/firmware/jaiabot/init/first-boot.preseed.complete
+    mount -o remount,ro /boot/firmware
 fi
 
 run_wt_yesno jaia_reboot "First boot provisioning complete" \

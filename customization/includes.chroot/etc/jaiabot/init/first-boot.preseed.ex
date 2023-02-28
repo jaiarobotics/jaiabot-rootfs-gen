@@ -1,6 +1,6 @@
 # Preseed configuration. Booleans can be "true" or "yes"
 # This is a bash script so any bash command is allowed
-# Edit and rename to "/etc/jaiabot/init/first-boot.preseed" to take effect
+# Edit and rename to "/boot/firmware/jaiabot/init/first-boot.preseed" to take effect
 
 jaia_run_first_boot=true
 jaia_stress_tests=true

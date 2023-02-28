@@ -303,6 +303,10 @@ sudo mount -o bind /sys "$ROOTFS_PARTITION"/sys
 OUTPUT_ROOTFS_TARBALL=$(echo $OUTPUT_IMAGE_PATH | sed "s/\.img$/\.tar.gz/")
 cp "${ROOTFS_TARBALL}" "${OUTPUT_ROOTFS_TARBALL}"
 
+# Copy the preseed example on the boot partition
+sudo mkdir -p "$BOOT_PARTITION"/jaiabot/init
+sudo cp "$ROOTFS_PARTITION"/etc/jaiabot/init/first-boot.preseed.ex "$BOOT_PARTITION"/jaiabot/init
+
 if [ ! -z "$VIRTUALBOX" ]; then
     sudo chroot rootfs apt-get -y install linux-image-generic
     

@@ -17,16 +17,17 @@ function write_preseed()
     local N="$2"
     local BOT_OR_HUB="$3"
     
-    # mount disk
+    ### mount disks
+    ## BOOT
     local VBOX_MOUNT_PATH="/tmp/vbox-jaia/${DISKUUID}"
     mkdir -p "${VBOX_MOUNT_PATH}"
     vboximg-mount -i "${DISKUUID}" --rw --root "${VBOX_MOUNT_PATH}"
-    sudo mount "${VBOX_MOUNT_PATH}/vol1" /mnt
+    sudo mount "${VBOX_MOUNT_PATH}/vol0" /mnt
 
-    cat <<EOF | sudo tee /mnt/etc/jaiabot/init/first-boot.preseed
+    cat <<EOF | sudo tee /mnt/jaiabot/init/first-boot.preseed
 # Preseed configuration. Booleans can be "true" or "yes"
 # This is a bash script so any bash command is allowed
-# Edit and rename to "/etc/jaiabot/init/first-boot.preseed" to take effect
+# Edit and rename to "/boot/firmware/jaiabot/init/first-boot.preseed" to take effect
 
 jaia_run_first_boot=true
 jaia_stress_tests=false
@@ -59,9 +60,13 @@ EOM
 jaia_reboot=true
 EOF
 
+    sudo umount /mnt
+
+    ## ROOTFS 
+    sudo mount "${VBOX_MOUNT_PATH}/vol1" /mnt
     # install all host public keys as authorized_keys
     cat $HOME/.ssh/*.pub | sudo tee /mnt/home/jaia/.ssh/authorized_keys   
-
     sudo umount /mnt
+    
     sudo umount -l "${VBOX_MOUNT_PATH}"
 }
