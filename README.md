@@ -33,8 +33,9 @@ As an alternative to the Raspberry Pi image, an `amd64` virtual machine (.ova) c
 sudo jaiabot-rootfs-gen/scripts/create_raspi_base_image.sh --virtualbox
 ```
 
-To import multiple (e.g. 10) VMs at once, use
+To import multiple (e.g. 5 bots, 1 hub) VMs at once, use
 
 ```
-jaiabot-rootfs-gen/scripts/import_vms.sh jaiabot_img-{version}.ova 10
+# Usage ./import_vms.sh vm.ova n_bots n_hubs fleet_id
+jaiabot-rootfs-gen/scripts/import_vms.sh jaiabot_img-{version}.ova 5 1 25
 ```
