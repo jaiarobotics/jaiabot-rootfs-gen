@@ -10,6 +10,7 @@ RemainAfterExit=true
 
 # required for systemd.py to install the correct User and Group for jaiabot services
 Environment=USER=jaia
+Environment=DEBIAN_FRONTEND=noninteractive
 
 ExecStart=/etc/jaiabot/init/first-boot.sh
 StandardOutput=journal+console

@@ -51,6 +51,7 @@ jaia_embedded_debconf=\$(cat << EOM
 jaiabot-embedded	jaiabot-embedded/fleet_id	select	${FLEET}
 jaiabot-embedded	jaiabot-embedded/type	select	${BOT_OR_HUB}
 jaiabot-embedded	jaiabot-embedded/mode	select	simulation
+jaiabot-embedded	jaiabot-embedded/warp	select	10
 jaiabot-embedded	jaiabot-embedded/n_bots	select	${N_BOTS}
 jaiabot-embedded	jaiabot-embedded/bot_id	select	${N}
 jaiabot-embedded	jaiabot-embedded/hub_id	select	${N}
