@@ -13,3 +13,5 @@ wpasupplicant
 # for gps-i2c-pipe.py
 python3-smbus
 apache2
+# for first boot script
+debconf-utils
