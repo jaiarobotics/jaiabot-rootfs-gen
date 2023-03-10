@@ -8,3 +8,6 @@ echo "jaia:jaia" | chpasswd
 
 echo "I: set jaia as the group for /etc/jaiabot"
 chown root:jaia /etc/jaiabot
+
+echo "I: setup bashrc"
+cp /etc/jaiabot/init/.bashrc /home/jaia/
