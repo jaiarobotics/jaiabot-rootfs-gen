@@ -11,3 +11,4 @@ chown root:jaia /etc/jaiabot
 
 echo "I: setup bashrc"
 cp /etc/jaiabot/init/.bashrc /home/jaia/
+chown jaia:jaia /home/jaia/.bashrc
