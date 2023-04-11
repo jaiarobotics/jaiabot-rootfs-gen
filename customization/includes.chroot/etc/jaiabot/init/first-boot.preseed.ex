@@ -28,7 +28,7 @@ jaiabot-embedded	jaiabot-embedded/n_bots	select	5
 jaiabot-embedded	jaiabot-embedded/bot_id	select	0
 jaiabot-embedded	jaiabot-embedded/hub_id	select	 0
 jaiabot-embedded	jaiabot-embedded/arduino_type	select	none
-jaiabot-embedded	jaiabot-embedded/gps_type	select	spi
+jaiabot-embedded	jaiabot-embedded/electronics_stack	select	2
 EOM
 )
 
