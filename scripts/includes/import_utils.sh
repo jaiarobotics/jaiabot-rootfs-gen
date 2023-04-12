@@ -57,6 +57,7 @@ jaiabot-embedded	jaiabot-embedded/bot_id	select	${N}
 jaiabot-embedded	jaiabot-embedded/hub_id	select	${N}
 jaiabot-embedded	jaiabot-embedded/arduino_type	select	none
 jaiabot-embedded	jaiabot-embedded/electronics_stack	select	2
+jaiabot-embedded	jaiabot-embedded/led_type	select	none
 EOM
 )
 
