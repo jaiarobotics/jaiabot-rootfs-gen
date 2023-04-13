@@ -35,9 +35,10 @@ jobs:
       - run:
           name: Rename image
           command: >-
+            CIRCLE_BRANCH_ESC=$(echo "$CIRCLE_BRANCH" | tr '/' '_')
             ROOTFS_BUILD_TAG="$(git describe --tags HEAD | sed 's/_/~/' | sed 's/-/+/g')" &&          
             mv images/base_image.img \
-               images/jaiabot_"$CIRCLE_BRANCH"_img-"$ROOTFS_BUILD_TAG".img
+               images/jaiabot_"$CIRCLE_BRANCH_ESC"_img-"$ROOTFS_BUILD_TAG".img
       - run:
           name: Compress image
           command: pigz images/*.img
@@ -55,9 +56,10 @@ jobs:
       - run:
           name: Create base SD card image for VirtualBox
           command: >-
+            CIRCLE_BRANCH_ESC=$(echo "$CIRCLE_BRANCH" | tr '/' '_')
             mkdir images &&
             ROOTFS_BUILD_TAG="$(git describe --tags HEAD | sed 's/_/~/' | sed 's/-/+/g')" &&          
-            sudo scripts/create_raspi_base_image.sh --dest images/jaiabot_"$CIRCLE_BRANCH"_img-"$ROOTFS_BUILD_TAG".img --virtualbox
+            sudo scripts/create_raspi_base_image.sh --dest images/jaiabot_"$CIRCLE_BRANCH_ESC"_img-"$ROOTFS_BUILD_TAG".img --virtualbox
       - run:
           name: Move image for storage
           command: >-
