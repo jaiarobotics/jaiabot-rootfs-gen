@@ -24,7 +24,6 @@ jaia_embedded_debconf=$(cat << EOM
 jaiabot-embedded	jaiabot-embedded/fleet_id	select	20
 jaiabot-embedded	jaiabot-embedded/type	select	hub
 jaiabot-embedded	jaiabot-embedded/mode	select	runtime
-jaiabot-embedded	jaiabot-embedded/n_bots	select	5
 jaiabot-embedded	jaiabot-embedded/bot_id	select	0
 jaiabot-embedded	jaiabot-embedded/hub_id	select	 0
 jaiabot-embedded	jaiabot-embedded/arduino_type	select	none
