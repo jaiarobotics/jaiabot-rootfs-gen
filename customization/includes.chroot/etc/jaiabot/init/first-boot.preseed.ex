@@ -25,7 +25,7 @@ jaiabot-embedded	jaiabot-embedded/fleet_id	select	20
 jaiabot-embedded	jaiabot-embedded/type	select	hub
 jaiabot-embedded	jaiabot-embedded/mode	select	runtime
 jaiabot-embedded	jaiabot-embedded/bot_id	select	0
-jaiabot-embedded	jaiabot-embedded/hub_id	select	 0
+jaiabot-embedded	jaiabot-embedded/hub_id	select	0
 jaiabot-embedded	jaiabot-embedded/arduino_type	select	none
 jaiabot-embedded	jaiabot-embedded/electronics_stack	select	2
 jaiabot-embedded	jaiabot-embedded/led_type	select	none

@@ -92,6 +92,16 @@ echo "###############################################"
 echo "## Setting up wifi                           ##"
 echo "###############################################"
 
+# IP addresses will be overwritten by jaiabot-embedded after choice of hub/bot info
+cat << EOF > /etc/network/interfaces.d/eth0
+auto eth0
+iface eth0 inet static
+   address 10.23.XXX.YYY
+   netmask 255.255.255.0
+   gateway 10.23.XXX.1
+
+EOF
+
 run_wt_yesno jaia_disable_ethernet "Wired ethernet (eth0)" \
              "Do you want to disable the wired Ethernet interface (eth0)?" && sed -i 's/^ *auto eth0/#auto eth0/' /etc/network/interfaces.d/eth0
 
