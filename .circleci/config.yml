@@ -28,6 +28,7 @@ jobs:
     resource_class: arm.medium
     environment:
       DISTRO_RELEASE_CODENAME: "focal"
+      DEBIAN_FRONTEND: "noninteractive"
     steps:
       - checkout
       - run: &run-install-apt-raspi
@@ -56,6 +57,7 @@ jobs:
     resource_class: medium
     environment:
       DISTRO_RELEASE_CODENAME: "focal"
+      DEBIAN_FRONTEND: "noninteractive"
     steps:
       - checkout
       - run: &run-install-apt-vbox
@@ -83,6 +85,7 @@ jobs:
     resource_class: arm.medium
     environment:
       DISTRO_RELEASE_CODENAME: "jammy"
+      DEBIAN_FRONTEND: "noninteractive"
     steps:
       - checkout
       - run: *run-install-apt-raspi
@@ -96,6 +99,7 @@ jobs:
     resource_class: medium
     environment:
       DISTRO_RELEASE_CODENAME: "jammy"
+      DEBIAN_FRONTEND: "noninteractive"
     steps:
       - checkout
       - run: *run-install-apt-vbox
