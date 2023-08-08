@@ -49,6 +49,9 @@
 #     --virtualbox
 #         Create an amd64 virtualbox VDI, rather than a Raspi SD card image (but otherwise create a very similar image)
 #
+#     --distribution
+#         Desired Ubuntu distribution codename (e.g., "focal" or "jammy")
+#
 # This script is invoked by the raspi-image-master job in the cgsn_mooring
 # project's CircleCI but can also be invoked directly.
 #
@@ -72,6 +75,7 @@ ROOTFS_BUILD_PATH="$TOPLEVEL"
 DEFAULT_IMAGE_NAME=jaiabot_img-"$ROOTFS_BUILD_TAG".img
 OUTPUT_IMAGE_PATH="$(pwd)"/"$DEFAULT_IMAGE_NAME"
 ROOTFS_TARBALL=
+DISTRIBUTION=focal
 
 # Ensure user is root
 if [ "$UID" -ne 0 ]; then
@@ -142,6 +146,10 @@ while [[ $# -gt 0 ]]; do
     ;;
   --virtualbox)
     VIRTUALBOX=1
+    ;;
+  --distribution)
+    DISTRIBUTION="$1"
+    shift
     ;;
   *)
     echo "Unexpected argument: $KEY" >&2
@@ -217,7 +225,8 @@ if [ -z "$ROOTFS_TARBALL" ]; then
     lb clean
     [ -z "$NATIVE" ] && cp auto/config.qemu auto/config || cp auto/config.native auto/config
     [ ! -z "$VIRTUALBOX" ] && cp auto/config.virtualbox auto/config
-    
+
+    sed -i "s/--distribution.*\\\/--distribution ${DISTRIBUTION} \\\/" auto/config
     lb config
     mkdir -p config/includes.chroot/etc/jaiabot
     chmod 775 config/includes.chroot/etc/jaiabot
