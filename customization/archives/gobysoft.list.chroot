@@ -1,1 +1,2 @@
-deb http://packages.jaia.tech/ubuntu/gobysoft/1.y/ @DISTRIBUTION@/
+# GobySoft package repositories have been moved to jaiabot.list
+
