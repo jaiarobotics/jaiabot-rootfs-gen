@@ -4,4 +4,3 @@ KERNEL=="ttyUSB0", SYMLINK+="arduino"
 ## xbee
 KERNEL=="ttyAMA2", SYMLINK+="xbee"
 
-## gps - managed by gps_i2c_pty.service
