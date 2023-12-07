@@ -50,7 +50,7 @@ jobs:
       - persist_to_workspace:
           root: /tmp
           paths:
-            - '/tmp/images/*.img.gz'
+            - 'images/*.img.gz'
             
   virtualbox-image-create:
     machine:
