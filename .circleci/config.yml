@@ -14,7 +14,11 @@ workflows:
           filters:
             branches:
               ignore: /feature/aws-cloud/
-      - test-s3
+      - test-s3-create
+      - test-s3-sync:
+          requires:
+            - test-s3-create
+
   nightly:
     triggers:
       - schedule:
@@ -78,23 +82,44 @@ jobs:
             mv images/*.ova vbox/
       - store_artifacts:
           path: vbox/
-  test-s3:
+          
+  test-s3-create:
+    machine:
+      image: ubuntu-2004:current
+    resource_class: medium
+    steps:
+      - run:
+          name: Create test file
+          command: >-
+            mkdir /root/vbox &&
+            date > /root/vbox/vbox_$(date -Iseconds).txt
+            mkdir /root/images &&
+            date > /root/images/rpi_$(date -Iseconds).txt
+      - persist_to_workspace:
+          root: /root
+          paths:
+            - 'vbox/*.txt'
+            - 'images/*.txt'
+
+  test-s3-sync:
     docker:
       - image: cimg/base:current
     environment:
       AWS_DEFAULT_REGION: "us-east-1"
     resource_class: medium
     steps:
-      - run:
-          name: Create test file
-          command: >-
-            mkdir vbox &&
-            date > vbox/test_$(date -Iseconds).txt
+      - attach_workspace:
+          at: /root
       - aws-cli/setup:
           profile_name: OIDC-User
           role_arn: arn:aws:iam::472532551733:role/JaiaS3JaiaBotImagesCircleCI
       - aws-s3/sync:
           profile_name: OIDC-User
-          from: vbox
-          to: s3://jaiabot-images-test
+          from: /root/vbox
+          to: s3://jaiabot-images-test/vbox
+      - aws-s3/sync:
+          profile_name: OIDC-User
+          from: /root/images
+          to: s3://jaiabot-images-test/rpi
+
           
