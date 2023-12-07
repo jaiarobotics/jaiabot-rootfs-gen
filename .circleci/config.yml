@@ -100,7 +100,7 @@ jobs:
           to: s3://jaiabot-images-test/vbox
       - aws-s3/sync:
           profile_name: OIDC-User
-          fro: /tmp/images
+          from: /tmp/images
           to: s3://jaiabot-images-test/rpi
 
           
