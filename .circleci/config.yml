@@ -80,7 +80,7 @@ jobs:
           path: vbox/
   test-s3:
     docker:
-      - image: ubuntu:jammy
+      - image: cimg/base:current
     resource_class: medium
     steps:
       - run:
