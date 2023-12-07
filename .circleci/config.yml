@@ -40,7 +40,11 @@ jobs:
       - run: &run-create-image
           name: Create filesystem image
           command: |
-            export CIRCLE_BRANCH_ESC=$(echo "$CIRCLE_BRANCH" | tr '/' '_')
+            if [ ! -z "$CIRCLE_BRANCH" ]; then
+              export CIRCLE_BRANCH_ESC=$(echo "$CIRCLE_BRANCH-" | tr '/' '_');
+            else
+              export CIRCLE_BRANCH_ESC=""
+            fi
             export ROOTFS_BUILD_TAG="$(git describe --tags HEAD | sed 's/_/~/' | sed 's/-/+/g')"
             export TMP_IMG_NAME=jaiabot
             mkdir /tmp/images
@@ -48,7 +52,7 @@ jobs:
             source ${TMP_IMG_NAME}.metadata.txt
             for filename in ${TMP_IMG_NAME}.*; do
               extension="${filename#*.}"
-              mv "${TMP_IMG_NAME}.${extension}" "/tmp/images/jaiabot__rootfs-${CIRCLE_BRANCH_ESC}-v${JAIABOT_ROOTFS_GEN_TAG}__code-v${JAIABOT_VERSION}.${extension}"
+              mv "${TMP_IMG_NAME}.${extension}" "/tmp/images/jaiabot__rootfs-${CIRCLE_BRANCH_ESC}v${JAIABOT_ROOTFS_GEN_TAG}__code-v${JAIABOT_VERSION}.${extension}"
             done
       - run:
           name: Compress image
