@@ -30,18 +30,21 @@ jobs:
     machine:
       image: ubuntu-2004:current
     resource_class: arm.medium
+    environment:
+      CREATE_IMAGE_ARGS: "--native"
     steps:
       - checkout
       - run:
           name: Install apt dependencies
           command: sudo apt-get update && sudo apt-get -y install pigz dosfstools gcc-aarch64-linux-gnu git kpartx live-build sudo wget
-      - run:
-          name: Create base SD card image for Raspberry Pi
-          command: >-
-            CIRCLE_BRANCH_ESC=$(echo "$CIRCLE_BRANCH" | tr '/' '_')
-            mkdir /tmp/images &&
-            ROOTFS_BUILD_TAG="$(git describe --tags HEAD | sed 's/_/~/' | sed 's/-/+/g')" &&          
-            sudo scripts/create_raspi_base_image.sh --dest /tmp/images/jaiabot_"$CIRCLE_BRANCH_ESC"_img-"$ROOTFS_BUILD_TAG".img --native
+      - run: &run-create-image
+          name: Create filesystem image
+          command: |
+            export CIRCLE_BRANCH_ESC=$(echo "$CIRCLE_BRANCH" | tr '/' '_')
+            export ROOTFS_BUILD_TAG="$(git describe --tags HEAD | sed 's/_/~/' | sed 's/-/+/g')"
+            mkdir /tmp/images
+            # sudo scripts/create_raspi_base_image.sh --dest /tmp/images/jaiabot_"$CIRCLE_BRANCH_ESC"_img-"$ROOTFS_BUILD_TAG".img ${CREATE_IMAGE_ARGS}
+            echo "/tmp/images/jaiabot_${CIRCLE_BRANCH_ESC}_img-${ROOTFS_BUILD_TAG}.img"
       - run:
           name: Compress image
           command: pigz /tmp/images/*.img
@@ -56,21 +59,17 @@ jobs:
     machine:
       image: ubuntu-2004:current
     resource_class: medium
+    environment:
+      CREATE_IMAGE_ARGS: "--virtualbox"
     steps:
       - checkout
       - run:
           name: Install apt dependencies
           command: sudo apt-get update && sudo apt-get -y install dosfstools gcc-aarch64-linux-gnu git kpartx live-build sudo wget virtualbox
-      - run:
-          name: Create base SD card image for VirtualBox
-          command: >-
-            CIRCLE_BRANCH_ESC=$(echo "$CIRCLE_BRANCH" | tr '/' '_')
-            mkdir /tmp/images &&
-            ROOTFS_BUILD_TAG="$(git describe --tags HEAD | sed 's/_/~/' | sed 's/-/+/g')" &&          
-            sudo scripts/create_raspi_base_image.sh --dest /tmp/images/jaiabot_"$CIRCLE_BRANCH_ESC"_img-"$ROOTFS_BUILD_TAG".img --virtualbox
+      - run: *run-create-image
       - run:
           name: Move image for storage
-          command: >-
+          command: |
             mkdir /tmp/vbox &&
             sudo chmod a+rwx /tmp/images/*.ova &&
             mv /tmp/images/*.ova /tmp/vbox/
