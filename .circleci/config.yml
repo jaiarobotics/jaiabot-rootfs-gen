@@ -1,6 +1,7 @@
 version: 2
 orbs:
-  aws-s3: circleci/aws-s3@4.0.0
+  aws-cli: circleci/aws-cli@4.0
+  aws-s3: circleci/aws-s3@4.0
 workflows:
   version: 2
   commit:
@@ -87,10 +88,11 @@ jobs:
           command: >-
             mkdir vbox &&
             date > vbox/test_$(date -Iseconds).txt
+      - aws-cli/setup:
+          profile_name: OIDC-User
+          role_arn: arn:aws:iam::472532551733:role/JaiaS3JaiaBotImagesCircleCI
       - aws-s3/sync:
-          auth:
-            - aws-cli/setup:
-                role_arn: arn:aws:iam::472532551733:role/JaiaS3JaiaBotImagesCircleCI
+          profile_name: OIDC-User
           from: vbox
           to: s3://jaiabot-images-test
           
