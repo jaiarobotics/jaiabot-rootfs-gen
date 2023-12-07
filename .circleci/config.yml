@@ -1,10 +1,19 @@
 version: 2
+orbs:
+  aws-s3: circleci/aws-s3@4.0.0
 workflows:
   version: 2
   commit:
     jobs:
-      - raspi-image-create      
-      - virtualbox-image-create
+      - raspi-image-create:
+          filters:
+            branches:
+              ignore: /feature/aws-cloud/
+      - virtualbox-image-create:
+          filters:
+            branches:
+              ignore: /feature/aws-cloud/
+      - test-s3
   nightly:
     triggers:
       - schedule:
@@ -68,3 +77,20 @@ jobs:
             mv images/*.ova vbox/
       - store_artifacts:
           path: vbox/
+  test-s3:
+    machine:
+      image: ubuntu-2004:current
+    resource_class: medium
+    steps:
+      - run:
+          name: Create test file
+          command: >-
+            mkdir vbox &&
+            date > vbox/test_$(date -Iseconds).txt
+      - aws-s3/sync:
+          auth:
+            - aws-cli/setup:
+                role_arn: arn:aws:iam::472532551733:role/JaiaS3JaiaBotImagesCircleCI
+          from: vbox
+          to: s3://jaiabot-images-test
+          
