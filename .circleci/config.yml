@@ -91,12 +91,12 @@ jobs:
       - run:
           name: Create test file
           command: >-
-            mkdir /root/vbox &&
-            date > /root/vbox/vbox_$(date -Iseconds).txt
-            mkdir /root/images &&
-            date > /root/images/rpi_$(date -Iseconds).txt
+            mkdir /tmp/vbox &&
+            date > /tmp/vbox/vbox_$(date -Iseconds).txt
+            mkdir /tmp/images &&
+            date > /tmp/images/rpi_$(date -Iseconds).txt
       - persist_to_workspace:
-          root: /root
+          root: /tmp
           paths:
             - 'vbox/*.txt'
             - 'images/*.txt'
@@ -109,17 +109,17 @@ jobs:
     resource_class: medium
     steps:
       - attach_workspace:
-          at: /root
+          at: /tmp
       - aws-cli/setup:
           profile_name: OIDC-User
           role_arn: arn:aws:iam::472532551733:role/JaiaS3JaiaBotImagesCircleCI
       - aws-s3/sync:
           profile_name: OIDC-User
-          from: /root/vbox
+          from: /tmp/vbox
           to: s3://jaiabot-images-test/vbox
       - aws-s3/sync:
           profile_name: OIDC-User
-          from: /root/images
+          from: /tmp/images
           to: s3://jaiabot-images-test/rpi
 
           
