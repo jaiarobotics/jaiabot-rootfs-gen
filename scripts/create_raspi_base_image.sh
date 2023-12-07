@@ -223,6 +223,7 @@ if [ -z "$ROOTFS_TARBALL" ]; then
     chmod 775 config/includes.chroot/etc/jaiabot
     echo "JAIABOT_IMAGE_VERSION=$ROOTFS_BUILD_TAG" >> config/includes.chroot/etc/jaiabot/version
     echo "JAIABOT_IMAGE_BUILD_DATE=\"`date -u`\""  >> config/includes.chroot/etc/jaiabot/version
+    echo "RASPI_FIRMWARE_VERSION=$RASPI_FIRMWARE_VERSION"  >> config/includes.chroot/etc/jaiabot/version
     lb build
     cd ..
     ROOTFS_TARBALL=rootfs-build/binary-tar.tar.gz
@@ -231,6 +232,9 @@ fi
 # Install the rootfs tarball to the partition
 sudo tar -C "$ROOTFS_PARTITION" --strip-components 1 \
   -xpzf "$ROOTFS_TARBALL"
+
+GOBY_VERSION=$(chroot $ROOTFS_PARTITION dpkg-query -W -f='${Version}' libgoby3 | cut -d - -f 1)
+JAIABOT_VERSION=$(chroot $ROOTFS_PARTITION dpkg-query -W -f='${Version}' libjaiabot | cut -d - -f 1)
 
 # Download the Raspberry Pi firmware tarball if we don't have it
 if [ -z "$FIRMWARE_PATH" ]; then
@@ -301,11 +305,17 @@ sudo mount -o bind /sys "$ROOTFS_PARTITION"/sys
 
 # Persist the rootfs in case we want it
 OUTPUT_ROOTFS_TARBALL=$(echo $OUTPUT_IMAGE_PATH | sed "s/\.img$/\.tar.gz/")
+OUTPUT_METADATA=$(echo $OUTPUT_IMAGE_PATH | sed "s/\.img$/\.metadata.txt/")
 cp "${ROOTFS_TARBALL}" "${OUTPUT_ROOTFS_TARBALL}"
 
 # Copy the preseed example on the boot partition
 sudo mkdir -p "$BOOT_PARTITION"/jaiabot/init
 sudo cp "$ROOTFS_PARTITION"/etc/jaiabot/init/first-boot.preseed.ex "$BOOT_PARTITION"/jaiabot/init
+
+# Write metadata
+echo "export JAIABOT_ROOTFS_GEN_TAG='$ROOTFS_BUILD_TAG'" > ${OUTPUT_METADATA}
+echo "export JAIABOT_VERSION='$JAIABOT_VERSION'" >> ${OUTPUT_METADATA}
+echo "export GOBY_VERSION='$GOBY_VERSION'" >> ${OUTPUT_METADATA}
 
 if [ ! -z "$VIRTUALBOX" ]; then
     sudo chroot rootfs apt-get -y install linux-image-generic

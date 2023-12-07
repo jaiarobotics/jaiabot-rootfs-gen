@@ -42,9 +42,11 @@ jobs:
           command: |
             export CIRCLE_BRANCH_ESC=$(echo "$CIRCLE_BRANCH" | tr '/' '_')
             export ROOTFS_BUILD_TAG="$(git describe --tags HEAD | sed 's/_/~/' | sed 's/-/+/g')"
+            export TMP_IMG_NAME=jaiabot
             mkdir /tmp/images
-            # sudo scripts/create_raspi_base_image.sh --dest /tmp/images/jaiabot_"$CIRCLE_BRANCH_ESC"_img-"$ROOTFS_BUILD_TAG".img ${CREATE_IMAGE_ARGS}
-            echo "/tmp/images/jaiabot_${CIRCLE_BRANCH_ESC}_img-${ROOTFS_BUILD_TAG}.img"
+            sudo scripts/create_raspi_base_image.sh --dest ${TMP_IMG_NAME}.img ${CREATE_IMAGE_ARGS}
+            source ${TMP_IMG_NAME}.metadata.txt
+            mv ${TMP_IMG_NAME}.img /tmp/images/jaiabot__rootfs-${CIRCLE_BRANCH_ESC}-v${JAIABOT_ROOTFS_GEN_TAG}__code-v${JAIABOT_VERSION}.img
       - run:
           name: Compress image
           command: pigz /tmp/images/*.img
@@ -98,7 +100,7 @@ jobs:
           to: s3://jaiabot-images-test/vbox
       - aws-s3/sync:
           profile_name: OIDC-User
-          from: /tmp/images
+          fro: /tmp/images
           to: s3://jaiabot-images-test/rpi
 
           
