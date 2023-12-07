@@ -91,6 +91,7 @@ jobs:
       - aws-cli/setup:
           profile_name: OIDC-User
           role_arn: arn:aws:iam::472532551733:role/JaiaS3JaiaBotImagesCircleCI
+          region: us-east-1
       - aws-s3/sync:
           profile_name: OIDC-User
           from: vbox
