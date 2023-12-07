@@ -47,7 +47,7 @@ jobs:
             sudo scripts/create_raspi_base_image.sh --dest ${TMP_IMG_NAME}.img ${CREATE_IMAGE_ARGS}
             source ${TMP_IMG_NAME}.metadata.txt
             for filename in ${TMP_IMG_NAME}.*; do
-              extension="${filename##*.}"
+              extension="${filename#*.}"
               mv "${TMP_IMG_NAME}.${extension}" "/tmp/images/jaiabot__rootfs-${CIRCLE_BRANCH_ESC}-v${JAIABOT_ROOTFS_GEN_TAG}__code-v${JAIABOT_VERSION}.${extension}"
             done
       - run:
