@@ -1,4 +1,4 @@
-version: 2
+version: 2.1
 orbs:
   aws-cli: circleci/aws-cli@4.0
   aws-s3: circleci/aws-s3@4.0
@@ -80,7 +80,7 @@ jobs:
           path: vbox/
   test-s3:
     docker:
-      image: ubuntu:jammy
+      - image: ubuntu:jammy
     resource_class: medium
     steps:
       - run:
