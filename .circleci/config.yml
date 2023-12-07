@@ -92,7 +92,7 @@ jobs:
           name: Create test file
           command: >-
             mkdir /tmp/vbox &&
-            date > /tmp/vbox/vbox_$(date -Iseconds).txt
+            date > /tmp/vbox/vbox_$(date -Iseconds).txt &&
             mkdir /tmp/images &&
             date > /tmp/images/rpi_$(date -Iseconds).txt
       - persist_to_workspace:
