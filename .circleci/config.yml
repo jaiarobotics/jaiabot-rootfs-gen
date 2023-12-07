@@ -79,8 +79,8 @@ jobs:
       - store_artifacts:
           path: vbox/
   test-s3:
-    machine:
-      image: ubuntu-2004:current
+    docker:
+      image: ubuntu:jammy
     resource_class: medium
     steps:
       - run:
