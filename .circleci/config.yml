@@ -6,12 +6,20 @@ workflows:
   version: 2
   commit:
     jobs:
-      - raspi-image-create
-      - virtualbox-image-create
-      - s3-sync:
-          requires:
-            - raspi-image-create
-            - virtualbox-image-create
+      - raspi-image-create:
+          filters:
+            branches:
+              ignore:
+                - feature/aws-cloud
+      - virtualbox-image-create:
+          filters:
+            branches:
+              ignore:
+                - feature/aws-cloud
+      - s3-sync
+#          requires:
+#            - raspi-image-create
+#            - virtualbox-image-create
 
   nightly:
     triggers:
@@ -96,18 +104,32 @@ jobs:
       AWS_DEFAULT_REGION: "us-east-1"
     resource_class: medium
     steps:
-      - attach_workspace:
-          at: /tmp
+#      - attach_workspace:
+#          at: /tmp
       - aws-cli/setup:
           profile_name: OIDC-User
           role_arn: arn:aws:iam::472532551733:role/JaiaS3JaiaBotImagesCircleCI
-      - aws-s3/sync:
-          profile_name: OIDC-User
-          from: /tmp/vbox
-          to: s3://jaiabot-images-test/vbox
-      - aws-s3/sync:
-          profile_name: OIDC-User
-          from: /tmp/images
-          to: s3://jaiabot-images-test/rpi
+#      - aws-s3/sync:
+#          profile_name: OIDC-User
+#          from: /tmp/vbox
+#          to: s3://jaiabot-images-test/vbox
+#      - aws-s3/sync:
+#          profile_name: OIDC-User
+#          from: /tmp/images
+#          to: s3://jaiabot-images-test/rpi
+      - run:
+          name: Set environmental variables for which repo tag to use (analogous to APT repo names)
+          command: |
+            # use script from jaiabot that does the same thing
+            
+            git clone https://github.com/jaiarobotics/jaiabot.git
+            
+            repo=$(${CIRCLE_WORKING_DIRECTORY}/jaiabot/.circleci/deb_repo.sh "$CIRCLE_BRANCH" "$CIRCLE_TAG" "repo")
+            version=$(${CIRCLE_WORKING_DIRECTORY}/jaiabot/.circleci/deb_repo.sh "$CIRCLE_BRANCH" "$CIRCLE_TAG" "version")
+            echo "repo:${repo}"
+            echo "version:${version}"
+            # export these for later use
+            echo "export JAIABOT_APT_REPO=${repo}" >> $BASH_ENV
+            echo "export JAIABOT_APT_VERSION=${version}" >> $BASH_ENV
 
           
