@@ -124,8 +124,8 @@ jobs:
             
             git clone https://github.com/jaiarobotics/jaiabot.git
             
-            repo=$(${CIRCLE_WORKING_DIRECTORY}/jaiabot/.circleci/deb_repo.sh "$CIRCLE_BRANCH" "$CIRCLE_TAG" "repo")
-            version=$(${CIRCLE_WORKING_DIRECTORY}/jaiabot/.circleci/deb_repo.sh "$CIRCLE_BRANCH" "$CIRCLE_TAG" "version")
+            repo=$(jaiabot/.circleci/deb_repo.sh "$CIRCLE_BRANCH" "$CIRCLE_TAG" "repo")
+            version=$(jaiabot/.circleci/deb_repo.sh "$CIRCLE_BRANCH" "$CIRCLE_TAG" "version")
             echo "repo:${repo}"
             echo "version:${version}"
             # export these for later use
