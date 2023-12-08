@@ -71,6 +71,7 @@ jobs:
           root: /tmp
           paths:
             - 'images/*.img.gz'
+            - 'images/*.metadata.txt'
             
   virtualbox-image-create:
     machine:
@@ -104,6 +105,7 @@ jobs:
       AWS_DEFAULT_REGION: "us-east-1"
     resource_class: medium
     steps:
+      - checkout
 #      - attach_workspace:
 #          at: /tmp
       - aws-cli/setup:
@@ -129,7 +131,45 @@ jobs:
             echo "repo:${repo}"
             echo "version:${version}"
             # export these for later use
-            echo "export JAIABOT_APT_REPO=${repo}" >> $BASH_ENV
-            echo "export JAIABOT_APT_VERSION=${version}" >> $BASH_ENV
+            echo "export JAIABOT_ROOTFS_GEN_REPO=${repo}" >> $BASH_ENV
+            echo "export JAIABOT_ROOTFS_GEN_REPO_VERSION=${version}" >> $BASH_ENV
+      - run:
+          name: Import new AMI
+          command: |
+            # OVA=$(basename $(ls /tmp/vbox/*.ova))
 
-          
+            ##REMOVE
+            OVA=jaiabot__rootfs-feature_aws-cloud-v1.0.0~alpha1+93+g66c96e1__code-v1.7.0.ova
+            ##REMOVE
+
+            IMAGE_NAME=${OVA%.*}
+            # writes result.json for later use
+            cloud/aws/import_ova_as_ami.sh ${OVA}
+            echo "export JAIABOT_IMAGE_NAME=${IMAGE_NAME}" >> $BASH_ENV
+      - run:
+          name: Deregister old AMI and delete snapshots
+          command: |
+            cloud/aws/delete_ami.sh ${JAIABOT_ROOTFS_GEN_REPO} ${JAIABOT_ROOTFS_GEN_VERSION}
+      - run:
+          name: Tag new AMI
+          command: |
+            # source /tmp/images/*.metadata.txt
+
+            ##REMOVE
+            JAIABOT_VERSION=jtestversion
+            GOBY_VERSION=gtestversion
+            JAIABOT_ROOTFS_GEN_TAG=testrootfstag
+            ##REMOVE
+
+            
+            image_id=$(jq -r '.ImportImageTasks[0].ImageId' result.json)
+            aws ec2 create-tags --resources ${image_id} --tags \
+              "Key=Name,Value=${JAIABOT_IMAGE_NAME}" \
+              "Key=jaiabot-rootfs-gen_version,Value=${JAIABOT_ROOTFS_GEN_TAG}" \
+              "Key=jaiabot-rootfs-gen_repository,Value=${JAIABOT_ROOTFS_GEN_REPO}" \
+              "Key=jaiabot-rootfs-gen_repository_version,Value=${JAIABOT_ROOTFS_GEN_REPO_VERSION}" \
+              "Key=jaiabot-rootfs-gen_build-date,Value=$(date -u)" \
+              "Key=jaiabot-rootfs-gen_build-unixtime,Value=$(date -u +%s)" \
+              "Key=jaiabot_version_when_built,Value=${JAIABOT_VERSION}" \
+              "Key=goby_version_when_built,Value=${GOBY_VERSION}"
+              
