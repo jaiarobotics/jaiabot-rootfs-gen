@@ -6,20 +6,20 @@ workflows:
   version: 2
   commit:
     jobs:
-      - raspi-image-create:
-          filters:
-            branches:
-              ignore:
-                - feature/aws-cloud
-      - virtualbox-image-create:
-          filters:
-            branches:
-              ignore:
-                - feature/aws-cloud
-      - s3-sync
-#          requires:
-#            - raspi-image-create
-#            - virtualbox-image-create
+      - raspi-image-create
+#          filters:
+#            branches:
+#              ignore:
+#                - feature/aws-cloud
+      - virtualbox-image-create
+#          filters:
+#            branches:
+#              ignore:
+#                - feature/aws-cloud
+      - s3-sync:
+          requires:
+            - raspi-image-create
+            - virtualbox-image-create
 
   nightly:
     triggers:
@@ -107,19 +107,19 @@ jobs:
     resource_class: medium
     steps:
       - checkout
-#      - attach_workspace:
-#          at: /tmp
+      - attach_workspace:
+          at: /tmp
       - aws-cli/setup:
           profile_name: OIDC-User
           role_arn: arn:aws:iam::472532551733:role/JaiaS3JaiaBotImagesCircleCI
-#      - aws-s3/sync:
-#          profile_name: OIDC-User
-#          from: /tmp/vbox
-#          to: s3://jaiabot-images-test/vbox
-#      - aws-s3/sync:
-#          profile_name: OIDC-User
-#          from: /tmp/images
-#          to: s3://jaiabot-images-test/rpi
+      - aws-s3/sync:
+          profile_name: OIDC-User
+          from: /tmp/vbox
+          to: s3://jaiabot-images-test/vbox
+      - aws-s3/sync:
+          profile_name: OIDC-User
+          from: /tmp/images
+          to: s3://jaiabot-images-test/rpi
       - run:
           name: Set environmental variables for which repo tag to use (analogous to APT repo names)
           command: |
@@ -137,11 +137,7 @@ jobs:
       - run:
           name: Import new AMI
           command: |
-            # OVA=$(basename $(ls /tmp/vbox/*.ova))
-
-            ##REMOVE
-            OVA=jaiabot__rootfs-feature_aws-cloud-v1.0.0~alpha1+93+g66c96e1__code-v1.7.0.ova
-            ##REMOVE
+            OVA=$(basename $(ls /tmp/vbox/*.ova))
 
             IMAGE_NAME=${OVA%.*}
             # writes result.json for later use
@@ -154,15 +150,7 @@ jobs:
       - run:
           name: Tag new AMI
           command: |
-            # source /tmp/images/*.metadata.txt
-
-            ##REMOVE
-            JAIABOT_VERSION=jtestversion
-            GOBY_VERSION=gtestversion
-            JAIABOT_ROOTFS_GEN_TAG=testrootfstag
-            ##REMOVE
-
-            
+            source /tmp/images/*.metadata.txt
             image_id=$(jq -r '.ImportImageTasks[0].ImageId' result.json)
             aws ec2 create-tags --resources ${image_id} --tags \
               "Key=Name,Value=${JAIABOT_IMAGE_NAME}" \
