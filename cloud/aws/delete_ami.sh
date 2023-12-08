@@ -20,12 +20,12 @@ ami_ids=$(aws ec2 describe-images --filters "Name=tag:jaiabot-rootfs-gen_reposit
 
 # Loop over each AMI
 for ami_id in $ami_ids; do
+    # Get the associated snapshot IDs
+    snapshot_ids=$(aws ec2 describe-images --image-ids $ami_id --query "Images[*].BlockDeviceMappings[*].Ebs.SnapshotId" --output text  ${EXTRA_AWS_CLI_ARGS})
+
     # Deregister the AMI
     aws ec2 deregister-image --image-id $ami_id  ${EXTRA_AWS_CLI_ARGS}
 
-    # Get the associated snapshot IDs
-    snapshot_ids=$(aws ec2 describe-images --image-ids $ami_id --query "Images[*].BlockDeviceMappings[*].Ebs.SnapshotId" --output text  ${EXTRA_AWS_CLI_ARGS})
-    
     # Delete each associated snapshot
     for snapshot_id in $snapshot_ids; do
         aws ec2 delete-snapshot --snapshot-id $snapshot_id ${EXTRA_AWS_CLI_ARGS}
