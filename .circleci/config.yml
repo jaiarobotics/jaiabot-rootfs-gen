@@ -16,7 +16,7 @@ workflows:
 #            branches:
 #              ignore:
 #                - feature/aws-cloud
-      - s3-sync:
+      - aws-sync:
           requires:
             - raspi-image-create
             - virtualbox-image-create
@@ -98,7 +98,7 @@ jobs:
           paths:
             - 'vbox/*.ova'
   
-  s3-sync:
+  aws-sync:
     docker:
       - image: cimg/base:current
     environment:
@@ -146,7 +146,7 @@ jobs:
       - run:
           name: Deregister old AMI and delete snapshots
           command: |
-            cloud/aws/delete_ami.sh ${JAIABOT_ROOTFS_GEN_REPO} ${JAIABOT_ROOTFS_GEN_VERSION}
+            cloud/aws/delete_ami.sh ${JAIABOT_ROOTFS_GEN_REPO} ${JAIABOT_ROOTFS_GEN_REPO_VERSION}
       - run:
           name: Tag new AMI
           command: |
