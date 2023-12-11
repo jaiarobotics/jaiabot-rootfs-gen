@@ -19,9 +19,10 @@ handle_failure() {
 trap handle_failure ERR
 
 set -u -e
-set -x
+
+# set -x
+
 VPC_CIDR_BLOCK="10.23.0.0/16"
-ETH_CIDR_BLOCK="10.23.255.0/24"
 # maps onto real fleet IP assignment
 WLAN_CIDR_BLOCK="10.23.${FLEET_ID}.0/24"
 CLOUDHUB_ID=30
@@ -42,33 +43,24 @@ echo "Created Internet Gateway with ID: $INTERNET_GATEWAY_ID"
 aws ec2 attach-internet-gateway --vpc-id "$VPC_ID" --internet-gateway-id "$INTERNET_GATEWAY_ID"
 echo "Attached Internet Gateway to VPC"
 
-# Create two Subnets: one for real fleet equivalent wired network and one for equivalent WLAN network
+# Create just one subnet: eth0 which has the same IP assignment as wlan0 in the real fleet
 SUBNET_ETH_IPV6=$(echo ${VPC_IPV6_BLOCK} | sed 's|00::/56|00::/64|')
-SUBNET_ETH_ID=$(aws ec2 create-subnet --vpc-id "$VPC_ID" --cidr-block "$ETH_CIDR_BLOCK" --ipv6-cidr-block "$SUBNET_ETH_IPV6" --query 'Subnet.SubnetId' --output text)
+SUBNET_ETH_ID=$(aws ec2 create-subnet --vpc-id "$VPC_ID" --cidr-block "$WLAN_CIDR_BLOCK" --ipv6-cidr-block "$SUBNET_ETH_IPV6" --query 'Subnet.SubnetId' --output text)
 echo "Created Subnet with ID: $SUBNET_ETH_ID and IPv6: ${SUBNET_ETH_IPV6}"
 
 aws ec2 modify-subnet-attribute --assign-ipv6-address-on-creation --subnet-id ${SUBNET_ETH_ID}
 
-SUBNET_WLAN_IPV6=$(echo ${VPC_IPV6_BLOCK} | sed 's|00::/56|23::/64|')
-SUBNET_WLAN_ID=$(aws ec2 create-subnet --vpc-id "$VPC_ID" --cidr-block "$WLAN_CIDR_BLOCK" --ipv6-cidr-block "$SUBNET_WLAN_IPV6" --query 'Subnet.SubnetId' --output text)
-echo "Created Subnet with ID: $SUBNET_WLAN_ID and IPv6: ${SUBNET_WLAN_IPV6}"
-
-aws ec2 modify-subnet-attribute --assign-ipv6-address-on-creation --subnet-id ${SUBNET_WLAN_ID}
 
 # Create a Security Group
 SECURITY_GROUP_ID=$(aws ec2 create-security-group --group-name "jaia__SecurityGroup__${JAIA_CUSTOMER_NAME}" --description "jaia__${JAIA_CUSTOMER_NAME} Security Group" --vpc-id "$VPC_ID" --query 'GroupId' --output text)
 echo "Created Security Group with ID: $SECURITY_GROUP_ID"
 
 # Set Up Security Group Rules
-aws ec2 authorize-security-group-ingress --group-id "$SECURITY_GROUP_ID" --ip-permissions IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges='[{CidrIp=0.0.0.0/0}]'
-aws ec2 authorize-security-group-ingress --group-id "$SECURITY_GROUP_ID" --ip-permissions IpProtocol=tcp,FromPort=22,ToPort=22,Ipv6Ranges='[{CidrIpv6=::/0}]'
+aws ec2 authorize-security-group-ingress --group-id "$SECURITY_GROUP_ID" --ip-permissions IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges='[{CidrIp=0.0.0.0/0}]',Ipv6Ranges='[{CidrIpv6=::/0}]'
 echo "Allowed SSH (port 22) on Security Group"
 
-#aws ec2 authorize-security-group-ingress --group-id "$SECURITY_GROUP_ID" --protocol udp --port 51821 --cidr 0.0.0.0/0
-#echo "Allowed UDP port 51821 (Wireguard) on Security Group"
-
-#aws ec2 authorize-security-group-ingress --group-id "$SECURITY_GROUP_ID" --protocol udp --port 51822 --cidr 0.0.0.0/0
-#echo "Allowed UDP port 51822 (Wireguard) on Security Group"
+aws ec2 authorize-security-group-ingress --group-id "$SECURITY_GROUP_ID" --ip-permissions IpProtocol=udp,FromPort=51820,ToPort=51821,IpRanges='[{CidrIp=0.0.0.0/0}]',Ipv6Ranges='[{CidrIpv6=::/0}]'
+echo "Allowed UDP ports 51820-51821 (Wireguard) on Security Group"
 
 # Modify the Main Route Table to use the Internet Gateway
 ROUTE_TABLE_ID=$(aws ec2 describe-route-tables --filters "Name=vpc-id,Values=$VPC_ID" "Name=association.main,Values=true" --query 'RouteTables[0].RouteTableId' --output text)
@@ -88,7 +80,7 @@ sed -i "s/{{FLEET_ID}}/${FLEET_ID}/g" ${USER_DATA_FILE}
 sed -i "s/{{CLOUDHUB_ID}}/${CLOUDHUB_ID}/g" ${USER_DATA_FILE}
 
 # Find the newest AMI matching the tags
-AMI_ID=$(aws ec2 describe-images --filters "Name=tag:jaiabot-rootfs-gen_repository,Values=test" "Name=tag:jaiabot-rootfs-gen_repository_version,Values=X.y" --query 'Images | sort_by(@, &CreationDate) | [-1].ImageId' --output text)
+AMI_ID=$(aws ec2 describe-images --filters "Name=tag:jaiabot-rootfs-gen_repository,Values=${REPO}" "Name=tag:jaiabot-rootfs-gen_repository_version,Values=${REPO_VERSION}" --query 'Images | sort_by(@, &CreationDate) | [-1].ImageId' --output text)
 
 if [ "$AMI_ID" == "None" ]; then
     echo "No matching AMI found for repo: ${REPO} and version: ${REPO_VERSION}. Available AMIs include: "
@@ -104,7 +96,7 @@ INSTANCE_ID=$(aws ec2 run-instances \
                   --instance-type "$INSTANCE_TYPE" \
                   --block-device-mappings "[{\"DeviceName\":\"/dev/sda1\",\"Ebs\":{\"VolumeSize\":$DISK_SIZE_GB,\"VolumeType\":\"gp3\"}}]" \
                   --user-data file://"$USER_DATA_FILE" \
-                  --network-interfaces "[{\"DeviceIndex\":0,\"DeleteOnTermination\":true,\"SubnetId\":\"$SUBNET_ETH_ID\",\"Groups\":[\"$SECURITY_GROUP_ID\"]},{\"DeviceIndex\":1,\"PrivateIpAddress\":\"$CLOUDHUB_WLAN_IP_ADDRESS\",\"DeleteOnTermination\":true,\"SubnetId\":\"$SUBNET_WLAN_ID\",\"Groups\":[\"$SECURITY_GROUP_ID\"]}]" \
+                  --network-interfaces "[{\"DeviceIndex\":0,\"DeleteOnTermination\":true,\"SubnetId\":\"$SUBNET_ETH_ID\",\"PrivateIpAddress\":\"$CLOUDHUB_WLAN_IP_ADDRESS\",\"Groups\":[\"$SECURITY_GROUP_ID\"]}]" \
                   --query "Instances[0].InstanceId" --output text)
 
 echo "EC2 Instance launched successfully with ID: $INSTANCE_ID"
@@ -118,12 +110,13 @@ while state=$(aws ec2 describe-instances --instance-ids "$INSTANCE_ID" --query '
 done
 
 ENI_ID_0=$(aws ec2 describe-network-interfaces --filters "Name=attachment.instance-id,Values=$INSTANCE_ID" "Name=attachment.device-index,Values=0" --query  NetworkInterfaces[0].NetworkInterfaceId --output text)
-ENI_ID_1=$(aws ec2 describe-network-interfaces --filters "Name=attachment.instance-id,Values=$INSTANCE_ID" "Name=attachment.device-index,Values=1" --query  NetworkInterfaces[0].NetworkInterfaceId --output text)
-echo "ENI IDs: [0]: $ENI_ID_0 [1]: $ENI_ID_1"
+echo "ENI ID: $ENI_ID_0"
 
 # Allocate an Elastic IP Address
 EIP_ALLOCATION_ID=$(aws ec2 allocate-address --query 'AllocationId' --output text)
 echo "Allocated Elastic IP Address with Allocation ID: $EIP_ALLOCATION_ID"
+
+PUBLIC_IPV4_ADDRESS=$(aws ec2 describe-addresses --allocation-ids $EIP_ALLOCATION_ID --query "Addresses[0].PublicIp" --output text)
 
 echo "Instance is running. Proceeding to associate Elastic IP Address."
 
@@ -132,10 +125,15 @@ aws ec2 associate-address --network-interface-id "$ENI_ID_0" --allocation-id "$E
 echo "Associated Elastic IP Address with EC2 Instance"
 
 # Tag the Resources
-aws ec2 create-tags --resources "$VPC_ID" "$SUBNET_ETH_ID" "$SUBNET_WLAN_ID" "$SECURITY_GROUP_ID" "$INTERNET_GATEWAY_ID" "$INSTANCE_ID" "$ROUTE_TABLE_ID" "$EIP_ALLOCATION_ID" "$ENI_ID_0" "$ENI_ID_1" --tags "Key=jaia_customer,Value=${JAIA_CUSTOMER_NAME}"
+aws ec2 create-tags --resources "$VPC_ID" "$SUBNET_ETH_ID" "$SECURITY_GROUP_ID" "$INTERNET_GATEWAY_ID" "$INSTANCE_ID" "$ROUTE_TABLE_ID" "$EIP_ALLOCATION_ID" "$ENI_ID_0" \
+    --tags \
+    "Key=jaia_customer,Value=${JAIA_CUSTOMER_NAME}" \
+    "Key=jaia_fleet,Value=${FLEET_ID}" \
+    "Key=jaiabot-rootfs-gen_repository,Value=${REPO}" \
+    "Key=jaiabot-rootfs-gen_repository_version,Value=${REPO_VERSION}"
+
 aws ec2 create-tags --resources "$VPC_ID"  --tags "Key=Name,Value=jaia__VPC__${JAIA_CUSTOMER_NAME}"
 aws ec2 create-tags --resources "$SUBNET_ETH_ID"  --tags "Key=Name,Value=jaia__Subnet_Ethernet__${JAIA_CUSTOMER_NAME}"
-aws ec2 create-tags --resources "$SUBNET_WLAN_ID"  --tags "Key=Name,Value=jaia__Subnet_Wireless__${JAIA_CUSTOMER_NAME}"
 aws ec2 create-tags --resources "$SECURITY_GROUP_ID"  --tags "Key=Name,Value=jaia__SecurityGroup__${JAIA_CUSTOMER_NAME}"
 aws ec2 create-tags --resources "$INTERNET_GATEWAY_ID"  --tags "Key=Name,Value=jaia__InternetGateway__${JAIA_CUSTOMER_NAME}"
 aws ec2 create-tags --resources "$ROUTE_TABLE_ID"  --tags "Key=Name,Value=jaia__RouteTable__${JAIA_CUSTOMER_NAME}"
@@ -144,8 +142,8 @@ aws ec2 create-tags --resources "$ROUTE_TABLE_ID"  --tags "Key=Name,Value=jaia__
 aws ec2 create-tags --resources "$INSTANCE_ID" --tags "Key=Name,Value=jaia__CloudHub_VM__${JAIA_CUSTOMER_NAME}"
 aws ec2 create-tags --resources "$EIP_ALLOCATION_ID" --tags "Key=Name,Value=jaia__CloudHub_VM__ElasticIP__${JAIA_CUSTOMER_NAME}"
 aws ec2 create-tags --resources "$ENI_ID_0" --tags "Key=Name,Value=jaia__CloudHub_VM__NetworkInterface0__${JAIA_CUSTOMER_NAME}"
-aws ec2 create-tags --resources "$ENI_ID_1" --tags "Key=Name,Value=jaia__CloudHub_VM__NetworkInterface1__${JAIA_CUSTOMER_NAME}"
 
 echo "Tagged resources"
 
-echo "SUCCESS"
+echo "SUCCESS: Started CloudHub in Fleet $FLEET_ID :"
+echo "\t Public IPv4 address: ${PUBLIC_IPV4_ADDRESS}"

@@ -9,10 +9,11 @@ ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDBxM4LhQ6Kfohk6oMesU9iPYsqiu1bI6hXS0TWQSsq
 ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDkhjS74aGshxZcl2yTzJIDlxhVdA4aeMdSwHyXNolNzem5kowIrBp5/twQmaUPpUegk/fy8PSSB36qoCEde+8saFfYKKMKW/u4WApWs8nrKljBJg+tAPXwMdkowhIaFM2FNoo8GGa9LsssaCHNG8McYGS5IBjoU2+xlIw+Wo5w9fVLNpp+uXJopO4GFsEXYHj5ZnCUFTxAVrHcVVv3rBOdZ6acrPoayi3SExhSWzKpG9OE9r6Qwip+TT6LuBVr7fzExSFl6dynJhjXbyNuTHQFLRgt2MaRb2Zcfmcvb7o4KVO3cuIDQ/c/gwlk1x+9KWKllExEaUXIO4etlTgSoZUF toby@yubikey16718427
 EOF
 
-## Restore network interfaces
-
+## Restore network interfaces file for reboot after first-boot config
 mv /etc/network/vmimport.interfaces /etc/network/interfaces
-systemctl restart networking
+
+## Restore default hostname
+echo "jaia-unnamed" > /etc/hostname
 
 ## Preseed jaiabot
 
@@ -27,7 +28,7 @@ jaia_stress_tests=false
 # Network
 ########################################################
 jaia_disable_ethernet=false
-jaia_configure_wifi=true
+jaia_configure_wifi=false
 jaia_wifi_ssid=dummy
 jaia_wifi_password=dummy
 
