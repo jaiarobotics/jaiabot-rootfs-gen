@@ -1,0 +1,50 @@
+#!/bin/bash
+
+mkdir -p /home/jaia/.ssh
+cat << EOF >> /home/jaia/.ssh/authorized_keys
+ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCWVm+RgEobZnz2gsOBBQ8jinPxmuroios5L0Jpb7XVw0/wr730JqIY4Pr7zipTTiwZSSuFCvT0vjAA2aQbw3witiPyhYpffXHtM6mpxvdj9U3dsTth2bbkolI28/J8P/AO8nUPsjh/Zack1a4vtVP+PJGSK9yHR54hkbBnDZ+MrjMpnHteTVAF2SEJF3IlpqeIpAja/qceflPL24LgMPq5rlY7f0K0xxT6YDPToRaZ/rNO+FgzW4ZaKOrU51TNX5WgN2AiiavyqKa3iVT/9VTo+HveWldoW1p9Ov4iCY6QfP2kiF7gfsxZZJ/Xpn99H3ya5SIng1Qs+gQ40vvKQVVT toby@yubikey16719472
+ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDBxM4LhQ6Kfohk6oMesU9iPYsqiu1bI6hXS0TWQSsqF3sZgTb5BWO4FuoDXrc49EeeG8fQv0UKeZKmEK/VcXlu/YbHtirl0DYcsIA1SEBoTWEvwTN7SNf4hA9kDZH4WB+xJq2Ob+qmcRDmbVSovE9WSJUujJdYkZuuFl7w6j/UDys8waxV0vlw9FqY6bN/slxr26xY7CUwDygljP+b/VDzn4WNBZGLP8Xlb5vMtw9Gg5Jr0jH+IdVXpPtqhFa2zlWhpKTHq0mx7w6iKVaa1NZVyOX1Jlodml1NTted3P73K6dQ8g/SlKBTUvO/en6R+ZUpJFY3QvO/w5KgTl6d3v17 toby@yubikey16719053
+ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDkhjS74aGshxZcl2yTzJIDlxhVdA4aeMdSwHyXNolNzem5kowIrBp5/twQmaUPpUegk/fy8PSSB36qoCEde+8saFfYKKMKW/u4WApWs8nrKljBJg+tAPXwMdkowhIaFM2FNoo8GGa9LsssaCHNG8McYGS5IBjoU2+xlIw+Wo5w9fVLNpp+uXJopO4GFsEXYHj5ZnCUFTxAVrHcVVv3rBOdZ6acrPoayi3SExhSWzKpG9OE9r6Qwip+TT6LuBVr7fzExSFl6dynJhjXbyNuTHQFLRgt2MaRb2Zcfmcvb7o4KVO3cuIDQ/c/gwlk1x+9KWKllExEaUXIO4etlTgSoZUF toby@yubikey16718427
+EOF
+
+mount -o remount,rw /boot/firmware
+mkdir -p /boot/firmware/jaiabot/init
+cat << EOF | tee /boot/firmware/jaiabot/init/first-boot.preseed
+
+jaia_run_first_boot=true
+jaia_stress_tests=false
+
+########################################################
+# Network
+########################################################
+jaia_disable_ethernet=true
+jaia_configure_wifi=true
+jaia_wifi_ssid=dummy
+jaia_wifi_password=dummy
+
+#########################################################
+# Preseed jaiabot-embedded package debconf queries
+# See jaiabot-embedded.templates from jaiabot-debian 
+# https://github.com/jaiarobotics/jaiabot-debian/blob/1.y/jaiabot-embedded.templates
+# To dump config in the correct format on a bot that is configured use: "debconf-get-selections  | grep jaia"
+#########################################################
+jaia_install_jaiabot_embedded=true
+jaia_embedded_debconf=\$(cat << EOM
+jaiabot-embedded        jaiabot-embedded/fleet_id       select  {{FLEET_ID}}
+jaiabot-embedded        jaiabot-embedded/type   select  hub
+jaiabot-embedded        jaiabot-embedded/mode   select  simulation
+jaiabot-embedded        jaiabot-embedded/warp   select  10
+jaiabot-embedded        jaiabot-embedded/bot_id select  0
+jaiabot-embedded        jaiabot-embedded/hub_id select  {{CLOUDHUB_ID}}
+jaiabot-embedded        jaiabot-embedded/arduino_type   select  none
+jaiabot-embedded        jaiabot-embedded/electronics_stack      select  2
+jaiabot-embedded        jaiabot-embedded/led_type       select  none
+EOM
+)
+
+jaia_reboot=true
+
+
+EOF
+
+systemctl restart first_boot
