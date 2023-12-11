@@ -18,3 +18,5 @@ xz-utils
 ## for stress testing
 stress
 memtester
+iptables
+ufw

@@ -15,5 +15,3 @@ python3-smbus
 apache2
 # for first boot script
 debconf-utils
-# for AWS cloud init
-cloud-init
