@@ -112,14 +112,6 @@ jobs:
       - aws-cli/setup:
           profile_name: OIDC-User
           role_arn: arn:aws:iam::472532551733:role/JaiaS3JaiaBotImagesCircleCI
-      - aws-s3/sync:
-          profile_name: OIDC-User
-          from: /tmp/vbox
-          to: s3://jaiabot-images-test/vbox
-      - aws-s3/sync:
-          profile_name: OIDC-User
-          from: /tmp/images
-          to: s3://jaiabot-images-test/rpi
       - run:
           name: Set environmental variables for which repo tag to use (analogous to APT repo names)
           command: |
@@ -134,6 +126,14 @@ jobs:
             # export these for later use
             echo "export JAIABOT_ROOTFS_GEN_REPO=${repo}" >> $BASH_ENV
             echo "export JAIABOT_ROOTFS_GEN_REPO_VERSION=${version}" >> $BASH_ENV
+      - aws-s3/sync:
+          profile_name: OIDC-User
+          from: /tmp/vbox
+          to: s3://jaiabot-images-test/${JAIABOT_ROOTFS_GEN_REPO}/${JAIABOT_ROOTFS_GEN_REPO_VERSION}/vbox
+      - aws-s3/sync:
+          profile_name: OIDC-User
+          from: /tmp/images
+          to: s3://jaiabot-images-test/${JAIABOT_ROOTFS_GEN_REPO}/${JAIABOT_ROOTFS_GEN_REPO_VERSION}/rpi
       - run:
           name: Import new AMI
           command: |

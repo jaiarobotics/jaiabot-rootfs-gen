@@ -2,17 +2,19 @@
 
 # Imports an OVA (already in S3) as an AMI using 'aws ec2 import-image', and tags the resulting AMI with provided tags (if any)
 
-if (( $# < 1 )); then
-    echo "Usage import_ova_as_ami.sh vm.ova aws_cli_extra_args"
+if (( $# < 3 )); then
+    echo "Usage import_ova_as_ami.sh vm.ova repo repo_version aws_cli_extra_args"
     exit 1;
 fi
 
 OVA="$1"
-EXTRA_AWS_CLI_ARGS="$2"
+REPO="$2"
+REPO_VERSION="$3"
+EXTRA_AWS_CLI_ARGS="$4"
 
 set -u -e
 
-result_json=$(aws ec2 import-image --description "JaiaBot" --disk-containers "Format=ova,UserBucket={S3Bucket=jaiabot-images-test,S3Key=vbox/${OVA}}" ${EXTRA_AWS_CLI_ARGS})
+result_json=$(aws ec2 import-image --description "JaiaBot" --disk-containers "Format=ova,UserBucket={S3Bucket=jaiabot-images-test,S3Key=${REPO}/${REPO_VERSION}/vbox/${OVA}}" ${EXTRA_AWS_CLI_ARGS})
 
 cmd_status=$(echo "$result_json" | jq -r '.Status')
 
