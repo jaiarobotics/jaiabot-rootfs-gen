@@ -1,16 +1,22 @@
 #!/bin/bash
 
 # Check if necessary parameters are provided
-if (( "$#" != 4 )); then
-    echo "Usage: $0 fleet_id repo repo_version jaia_customer_name"
+if (( "$#" != 1 )); then
+    echo "Usage: $0 vpc.conf"
     exit 1
 fi
 
-FLEET_ID=$1
-REPO=$2
-REPO_VERSION=$3
-JAIA_CUSTOMER_NAME=$4
+set -a
+source $1
+set +a
+
+set -u -e
+
+ set -x
+
+
 SCRIPT_PATH=$(dirname "$0")
+FLEET_ID_HEX=$(printf '%x\n' ${FLEET_ID})
 
 handle_failure() {
     echo "FAILURE"
@@ -18,15 +24,18 @@ handle_failure() {
 }
 trap handle_failure ERR
 
-set -u -e
-
-# set -x
 
 VPC_CIDR_BLOCK="10.23.0.0/16"
 # maps onto real fleet IP assignment
 WLAN_CIDR_BLOCK="10.23.${FLEET_ID}.0/24"
 CLOUDHUB_ID=30
 CLOUDHUB_WLAN_IP_ADDRESS="10.23.${FLEET_ID}.$((CLOUDHUB_ID+10))"
+# IPv6 address to use for VirtualFleet VPN (fd6e:cf0d:aefa:FLEET_ID_HEX::/48)
+VIRTUALFLEET_VPN_CLIENT_IPV6="fd6e:cf0d:aefa:${FLEET_ID_HEX}::2:1"
+VIRTUALFLEET_VPN_SERVER_IPV6="fd6e:cf0d:aefa:${FLEET_ID_HEX}::0:30"
+# IPv6 address to use for VirtualFleet VPN (fd0f:77ac:4fdf:FLEET_ID_HEX::/48)
+CLOUDHUB_VPN_CLIENT_IPV6="fd0f:77ac:4fdf:${FLEET_ID_HEX}::2:1"
+CLOUDHUB_VPN_SERVER_IPV6="fd0f:77ac:4fdf:${FLEET_ID_HEX}::0:30"
 
 # Create a VPC
 VPC_ID=$(aws ec2 create-vpc --cidr-block "$VPC_CIDR_BLOCK" --amazon-provided-ipv6-cidr-block --query 'Vpc.VpcId' --output text)
@@ -69,7 +78,6 @@ aws ec2 create-route --route-table-id "$ROUTE_TABLE_ID" --destination-ipv6-cidr-
 echo "Modified the main route table to use the Internet Gateway"
 
 ## Launch the actual VM (CloudHub)
-INSTANCE_TYPE="t3a.medium"
 USER_DATA_FILE_IN="${SCRIPT_PATH}/cloud-init-user-data.txt.in"
 USER_DATA_FILE="${SCRIPT_PATH}/cloud-init-user-data.txt"
 DISK_SIZE_GB=32
@@ -78,6 +86,11 @@ DISK_SIZE_GB=32
 cp ${USER_DATA_FILE_IN} ${USER_DATA_FILE}
 sed -i "s/{{FLEET_ID}}/${FLEET_ID}/g" ${USER_DATA_FILE}
 sed -i "s/{{CLOUDHUB_ID}}/${CLOUDHUB_ID}/g" ${USER_DATA_FILE}
+sed -i "s|{{VPN_WIREGUARD_PUBKEY}}|${VPN_WIREGUARD_PUBKEY}|g" ${USER_DATA_FILE}
+sed -i "s/{{VIRTUALFLEET_VPN_CLIENT_IPV6}}/${VIRTUALFLEET_VPN_CLIENT_IPV6}/g" ${USER_DATA_FILE}
+sed -i "s/{{VIRTUALFLEET_VPN_SERVER_IPV6}}/${VIRTUALFLEET_VPN_SERVER_IPV6}/g" ${USER_DATA_FILE}
+sed -i "s/{{CLOUDHUB_VPN_CLIENT_IPV6}}/${CLOUDHUB_VPN_CLIENT_IPV6}/g" ${USER_DATA_FILE}
+sed -i "s/{{CLOUDHUB_VPN_SERVER_IPV6}}/${CLOUDHUB_VPN_SERVER_IPV6}/g" ${USER_DATA_FILE}
 
 # Find the newest AMI matching the tags
 AMI_ID=$(aws ec2 describe-images --filters "Name=tag:jaiabot-rootfs-gen_repository,Values=${REPO}" "Name=tag:jaiabot-rootfs-gen_repository_version,Values=${REPO_VERSION}" --query 'Images | sort_by(@, &CreationDate) | [-1].ImageId' --output text)
@@ -145,5 +158,88 @@ aws ec2 create-tags --resources "$ENI_ID_0" --tags "Key=Name,Value=jaia__CloudHu
 
 echo "Tagged resources"
 
-echo "SUCCESS: Started CloudHub in Fleet $FLEET_ID :"
-echo "\t Public IPv4 address: ${PUBLIC_IPV4_ADDRESS}"
+# Wait to get public key
+while SERVER_WIREGUARD_PUBKEY=$(ssh -o ConnectTimeout=10 -o PasswordAuthentication=No jaia@${PUBLIC_IPV4_ADDRESS} "sudo cat /etc/wireguard/publickey" || echo Fail); [ "${SERVER_WIREGUARD_PUBKEY}" == "Fail" ]; do
+    echo "Waiting for server to startup and first-boot configure to get Wireguard public key";
+    sleep 5
+done
+
+echo "Server Wireguard Pubkey: ${SERVER_WIREGUARD_PUBKEY}"
+
+aws ec2 revoke-security-group-ingress --group-id "$SECURITY_GROUP_ID" --ip-permissions IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges='[{CidrIp=0.0.0.0/0}]',Ipv6Ranges='[{CidrIpv6=::/0}]'
+echo "Removed SSH (port 22) on Security Group"
+
+VFLEET_VPN=wg_jaia_vfleet${FLEET_ID}
+CLOUD_VPN=wg_jaia_cloud${FLEET_ID}
+cat <<EOF >> /tmp/${VFLEET_VPN}.conf
+# Write client VPN
+[Interface]
+# from /etc/wireguard/privatekey on client
+PrivateKey = ...
+
+# this client's VPN IP address
+Address = ${VIRTUALFLEET_VPN_CLIENT_IPV6}/128
+
+[Peer]
+# Server public key (from /etc/wireguard/publickey on server)
+PublicKey = ${SERVER_WIREGUARD_PUBKEY}
+
+# Allowed private IPs
+AllowedIPs = ${VIRTUALFLEET_VPN_SERVER_IPV6}/48
+
+# Server IP and port
+Endpoint = ${PUBLIC_IPV4_ADDRESS}:51820
+
+# Keep connection alive (required for behind NAT routers)
+PersistentKeepalive = 52
+
+EOF
+
+cat <<EOF >> /tmp/${CLOUD_VPN}.conf
+# Write client VPN
+[Interface]
+# from /etc/wireguard/privatekey on client
+PrivateKey = ...
+
+# this client's VPN IP address
+Address = ${CLOUDHUB_VPN_CLIENT_IPV6}/128
+
+[Peer]
+# Server public key (from /etc/wireguard/publickey on server)
+PublicKey = ${SERVER_WIREGUARD_PUBKEY}
+
+# Allowed private IPs
+AllowedIPs = ${CLOUDHUB_VPN_SERVER_IPV6}/48
+
+# Server IP and port
+Endpoint = ${PUBLIC_IPV4_ADDRESS}:51821
+
+# Keep connection alive (required for behind NAT routers)
+PersistentKeepalive = 52
+EOF
+
+
+echo "SUCCESS: Started CloudHub in Fleet $FLEET_ID:"
+echo -e "\tPublic IPv4 address: ${PUBLIC_IPV4_ADDRESS}"
+
+
+if [[ "$ENABLE_CLIENT_VPN" == "true" ]]; then
+    VPN_PRIVATEKEY=$(sudo cat ${VPN_WIREGUARD_PRIVATEKEY_FILE})
+    sed -i "s/.*PrivateKey.*/PrivateKey = ${VPN_PRIVATEKEY}/" /tmp/${VFLEET_VPN}.conf
+    sed -i "s/.*PrivateKey.*/PrivateKey = ${VPN_PRIVATEKEY}/" /tmp/${CLOUD_VPN}.conf
+    sudo mv /tmp/${VFLEET_VPN}.conf /tmp/${CLOUD_VPN}.conf /etc/wireguard
+    sudo systemctl enable wg-quick@${VFLEET_VPN}
+    sudo systemctl restart wg-quick@${VFLEET_VPN}
+
+    sudo systemctl enable wg-quick@${CLOUD_VPN}
+    sudo systemctl restart wg-quick@${CLOUD_VPN}
+
+    echo -e "\tEnabled VPNs:"
+    sudo wg show ${VFLEET_VPN}
+    sudo wg show ${CLOUD_VPN}
+
+    echo -e "\tLog in with ssh jaia@${VIRTUALFLEET_VPN_SERVER_IPV6}"
+else
+    echo "Prototype config for VPNs in /tmp/${VFLEET_VPN} and /tmp/${CLOUD_VPN}.conf. You will need to enable one or both VPNs to access the Cloudhub VM."
+fi
+
