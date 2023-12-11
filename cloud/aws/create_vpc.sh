@@ -52,13 +52,16 @@ echo "Created Internet Gateway with ID: $INTERNET_GATEWAY_ID"
 aws ec2 attach-internet-gateway --vpc-id "$VPC_ID" --internet-gateway-id "$INTERNET_GATEWAY_ID"
 echo "Attached Internet Gateway to VPC"
 
-# Create just one subnet: eth0 which has the same IP assignment as wlan0 in the real fleet
-SUBNET_ETH_IPV6=$(echo ${VPC_IPV6_BLOCK} | sed 's|00::/56|00::/64|')
-SUBNET_ETH_ID=$(aws ec2 create-subnet --vpc-id "$VPC_ID" --cidr-block "$WLAN_CIDR_BLOCK" --ipv6-cidr-block "$SUBNET_ETH_IPV6" --query 'Subnet.SubnetId' --output text)
-echo "Created Subnet with ID: $SUBNET_ETH_ID and IPv6: ${SUBNET_ETH_IPV6}"
+# Create two subnets: 1) Cloudhub where eth0 which has the same IPv4 assignment as wlan0 in the real fleet, plus an IPv6 block and 2) VirtualFleet with just an IPv6 block
+SUBNET_CLOUDHUB_IPV6=$(echo ${VPC_IPV6_BLOCK} | sed 's|00::/56|00::/64|')
+SUBNET_CLOUDHUB_ID=$(aws ec2 create-subnet --vpc-id "$VPC_ID" --cidr-block "$WLAN_CIDR_BLOCK" --ipv6-cidr-block "$SUBNET_CLOUDHUB_IPV6" --query 'Subnet.SubnetId' --output text)
+echo "Created CloudHub Subnet with ID: $SUBNET_CLOUDHUB_ID and IPv6: ${SUBNET_CLOUDHUB_IPV6}"
+aws ec2 modify-subnet-attribute --assign-ipv6-address-on-creation --subnet-id ${SUBNET_CLOUDHUB_ID}
 
-aws ec2 modify-subnet-attribute --assign-ipv6-address-on-creation --subnet-id ${SUBNET_ETH_ID}
-
+SUBNET_VIRTUALFLEET_IPV6=$(echo ${VPC_IPV6_BLOCK} | sed 's|00::/56|01::/64|')
+SUBNET_VIRTUALFLEET_ID=$(aws ec2 create-subnet --vpc-id "$VPC_ID" --ipv6-cidr-block "$SUBNET_VIRTUALFLEET_IPV6" --query 'Subnet.SubnetId' --output text)
+echo "Created VirtualFleet Subnet with ID: $SUBNET_VIRTUALFLEET_ID and IPv6: ${SUBNET_VIRTUALFLEET_IPV6}"
+aws ec2 modify-subnet-attribute --assign-ipv6-address-on-creation --subnet-id ${SUBNET_VIRTUALFLEET_ID}
 
 # Create a Security Group
 SECURITY_GROUP_ID=$(aws ec2 create-security-group --group-name "jaia__SecurityGroup__${JAIA_CUSTOMER_NAME}" --description "jaia__${JAIA_CUSTOMER_NAME} Security Group" --vpc-id "$VPC_ID" --query 'GroupId' --output text)
@@ -109,7 +112,7 @@ INSTANCE_ID=$(aws ec2 run-instances \
                   --instance-type "$INSTANCE_TYPE" \
                   --block-device-mappings "[{\"DeviceName\":\"/dev/sda1\",\"Ebs\":{\"VolumeSize\":$DISK_SIZE_GB,\"VolumeType\":\"gp3\"}}]" \
                   --user-data file://"$USER_DATA_FILE" \
-                  --network-interfaces "[{\"DeviceIndex\":0,\"DeleteOnTermination\":true,\"SubnetId\":\"$SUBNET_ETH_ID\",\"PrivateIpAddress\":\"$CLOUDHUB_WLAN_IP_ADDRESS\",\"Groups\":[\"$SECURITY_GROUP_ID\"]}]" \
+                  --network-interfaces "[{\"DeviceIndex\":0,\"DeleteOnTermination\":true,\"SubnetId\":\"$SUBNET_CLOUDHUB_ID\",\"PrivateIpAddress\":\"$CLOUDHUB_WLAN_IP_ADDRESS\",\"Groups\":[\"$SECURITY_GROUP_ID\"]}]" \
                   --query "Instances[0].InstanceId" --output text)
 
 echo "EC2 Instance launched successfully with ID: $INSTANCE_ID"
@@ -138,7 +141,7 @@ aws ec2 associate-address --network-interface-id "$ENI_ID_0" --allocation-id "$E
 echo "Associated Elastic IP Address with EC2 Instance"
 
 # Tag the Resources
-aws ec2 create-tags --resources "$VPC_ID" "$SUBNET_ETH_ID" "$SECURITY_GROUP_ID" "$INTERNET_GATEWAY_ID" "$INSTANCE_ID" "$ROUTE_TABLE_ID" "$EIP_ALLOCATION_ID" "$ENI_ID_0" \
+aws ec2 create-tags --resources "$VPC_ID" "$SUBNET_CLOUDHUB_ID" "$SUBNET_VIRTUALFLEET_ID" "$SECURITY_GROUP_ID" "$INTERNET_GATEWAY_ID" "$INSTANCE_ID" "$ROUTE_TABLE_ID" "$EIP_ALLOCATION_ID" "$ENI_ID_0" \
     --tags \
     "Key=jaia_customer,Value=${JAIA_CUSTOMER_NAME}" \
     "Key=jaia_fleet,Value=${FLEET_ID}" \
@@ -146,13 +149,14 @@ aws ec2 create-tags --resources "$VPC_ID" "$SUBNET_ETH_ID" "$SECURITY_GROUP_ID" 
     "Key=jaiabot-rootfs-gen_repository_version,Value=${REPO_VERSION}"
 
 aws ec2 create-tags --resources "$VPC_ID"  --tags "Key=Name,Value=jaia__VPC__${JAIA_CUSTOMER_NAME}"
-aws ec2 create-tags --resources "$SUBNET_ETH_ID"  --tags "Key=Name,Value=jaia__Subnet_Ethernet__${JAIA_CUSTOMER_NAME}"
+aws ec2 create-tags --resources "$SUBNET_CLOUDHUB_ID"  --tags "Key=Name,Value=jaia__Subnet_CloudHub__${JAIA_CUSTOMER_NAME}"
+aws ec2 create-tags --resources "$SUBNET_VIRTUALFLEET_ID"  --tags "Key=Name,Value=jaia__Subnet_VirtualFleet__${JAIA_CUSTOMER_NAME}"
 aws ec2 create-tags --resources "$SECURITY_GROUP_ID"  --tags "Key=Name,Value=jaia__SecurityGroup__${JAIA_CUSTOMER_NAME}"
 aws ec2 create-tags --resources "$INTERNET_GATEWAY_ID"  --tags "Key=Name,Value=jaia__InternetGateway__${JAIA_CUSTOMER_NAME}"
 aws ec2 create-tags --resources "$ROUTE_TABLE_ID"  --tags "Key=Name,Value=jaia__RouteTable__${JAIA_CUSTOMER_NAME}"
 
 # VM specific
-aws ec2 create-tags --resources "$INSTANCE_ID" --tags "Key=Name,Value=jaia__CloudHub_VM__${JAIA_CUSTOMER_NAME}"
+aws ec2 create-tags --resources "$INSTANCE_ID" --tags "Key=Name,Value=jaia__CloudHub_VM__${JAIA_CUSTOMER_NAME}" "Key=jaia_instance_type,Value=cloudhub"
 aws ec2 create-tags --resources "$EIP_ALLOCATION_ID" --tags "Key=Name,Value=jaia__CloudHub_VM__ElasticIP__${JAIA_CUSTOMER_NAME}"
 aws ec2 create-tags --resources "$ENI_ID_0" --tags "Key=Name,Value=jaia__CloudHub_VM__NetworkInterface0__${JAIA_CUSTOMER_NAME}"
 
