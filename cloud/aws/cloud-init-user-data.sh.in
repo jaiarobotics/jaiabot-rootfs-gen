@@ -68,7 +68,23 @@ EOF
 mv /etc/network/vmimport.interfaces /etc/network/interfaces
 
 ## Restore default hostname
-echo "jaia-unnamed" > /etc/hostname
+hostnamectl set-hostname "jaia-unnamed"
+
+## Store useful data for VirtualFleet
+
+cat <<EOF > /etc/jaiabot/cloud.env
+jaia_fleet_index={{FLEET_ID}}
+jaia_aws_vpc_id={{VPC_ID}}
+jaia_aws_customer="{{JAIA_CUSTOMER_NAME}}"
+jaia_aws_region={{REGION}}
+jaia_aws_cloudhub_subnet_id={{SUBNET_CLOUDHUB_ID}}
+jaia_aws_virtualfleet_subnet_id={{SUBNET_VIRTUALFLEET_ID}}
+jaia_aws_account_id={{ACCOUNT_ID}}
+jaia_aws_virtualfleet_security_group={{VIRTUALFLEET_SECURITY_GROUP_ID}}
+EOF
+
+## Install ansible aws
+ansible-galaxy collection install amazon.aws
 
 ## Preseed jaiabot
 mount -o remount,rw /boot/firmware

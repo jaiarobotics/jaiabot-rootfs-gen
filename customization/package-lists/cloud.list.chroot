@@ -1,2 +1,3 @@
 cloud-init
 awscli
+python3-boto3

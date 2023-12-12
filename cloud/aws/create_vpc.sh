@@ -72,8 +72,6 @@ VPN_WIREGUARD_PUBKEY=$(echo $VPN_WIREGUARD_PRIVATEKEY | wg pubkey)
 export AWS_DEFAULT_REGION=$REGION
 ACCOUNT_ID=$(run ".Account" aws sts get-caller-identity)
 
-
-
 # Create a VPC
 VPC_ID=$(run ".Vpc.VpcId" aws ec2 create-vpc --cidr-block "$VPC_CIDR_BLOCK" --amazon-provided-ipv6-cidr-block)
 echo ">>>>>> Created VPC with ID: $VPC_ID"
@@ -137,17 +135,20 @@ SUBNET_VIRTUALFLEET_ID=$(run ".Subnet.SubnetId" aws ec2 create-subnet --vpc-id $
 echo ">>>>>> Created VirtualFleet Subnet with ID: $SUBNET_VIRTUALFLEET_ID and IPv6: ${SUBNET_VIRTUALFLEET_IPV6}"
 run "" aws ec2 modify-subnet-attribute --assign-ipv6-address-on-creation --subnet-id ${SUBNET_VIRTUALFLEET_ID}
 
-# Create a Security Group
-SECURITY_GROUP_ID=$(run '.GroupId' aws ec2 create-security-group --group-name "jaia__SecurityGroup__${JAIA_CUSTOMER_NAME}" --description "jaia__${JAIA_CUSTOMER_NAME} Security Group" --vpc-id $VPC_ID)
-echo ">>>>>> Created Security Group with ID: $SECURITY_GROUP_ID"
+# Create a Security Group for CloudHub
+CLOUDHUB_SECURITY_GROUP_ID=$(run '.GroupId' aws ec2 create-security-group --group-name "jaia__SecurityGroup_CloudHub__${JAIA_CUSTOMER_NAME}" --description "jaia__${JAIA_CUSTOMER_NAME} CloudHub Security Group" --vpc-id $VPC_ID)
+echo ">>>>>> Created CloudHub Security Group with ID: $CLOUDHUB_SECURITY_GROUP_ID"
 
 # Set Up Security Group Rules
-run "" aws ec2 authorize-security-group-ingress --group-id $SECURITY_GROUP_ID --ip-permissions IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges='[{CidrIp=0.0.0.0/0}]',Ipv6Ranges='[{CidrIpv6=::/0}]'
+run "" aws ec2 authorize-security-group-ingress --group-id $CLOUDHUB_SECURITY_GROUP_ID --ip-permissions IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges='[{CidrIp=0.0.0.0/0}]',Ipv6Ranges='[{CidrIpv6=::/0}]'
 echo ">>>>>> Allowed SSH (port 22) on Security Group"
 
-run "" aws ec2 authorize-security-group-ingress --group-id $SECURITY_GROUP_ID --ip-permissions IpProtocol=udp,FromPort=51820,ToPort=51821,IpRanges='[{CidrIp=0.0.0.0/0}]',Ipv6Ranges='[{CidrIpv6=::/0}]'
+run "" aws ec2 authorize-security-group-ingress --group-id $CLOUDHUB_SECURITY_GROUP_ID --ip-permissions IpProtocol=udp,FromPort=51820,ToPort=51821,IpRanges='[{CidrIp=0.0.0.0/0}]',Ipv6Ranges='[{CidrIpv6=::/0}]'
 echo ">>>>>> Allowed UDP ports 51820-51821 (Wireguard) on Security Group"
 
+# Create a Security Group for VirtualFleet with no ingress rules allowed
+VIRTUALFLEET_SECURITY_GROUP_ID=$(run '.GroupId' aws ec2 create-security-group --group-name "jaia__SecurityGroup_VirtualFleet__${JAIA_CUSTOMER_NAME}" --description "jaia__${JAIA_CUSTOMER_NAME} VirtualFleet Security Group" --vpc-id $VPC_ID)
+echo ">>>>>> Created VirtualFleet Security Group with ID: $VIRTUALFLEET_SECURITY_GROUP_ID"
 
 # Modify the Main Route Table to use the Internet Gateway
 ROUTE_TABLE_ID=$(run  '.RouteTables[0].RouteTableId' aws ec2 describe-route-tables --filters "Name=vpc-id,Values=$VPC_ID" "Name=association.main,Values=true")
@@ -162,21 +163,33 @@ DISK_SIZE_GB=32
 
 # replace some {{MACROS}} in the user data
 cp ${USER_DATA_FILE_IN} ${USER_DATA_FILE}
-sed -i "s/{{FLEET_ID}}/${FLEET_ID}/g" ${USER_DATA_FILE}
 
-# Replace newlines in the variable with a unique pattern, e.g., '|||'
+declare -A replacements=(
+    ["{{FLEET_ID}}"]="$FLEET_ID"
+    ["{{CLOUDHUB_ID}}"]="$CLOUDHUB_ID"
+    ["{{VPN_WIREGUARD_PUBKEY}}"]="$VPN_WIREGUARD_PUBKEY"
+    ["{{VIRTUALFLEET_VPN_CLIENT_IPV6}}"]="$VIRTUALFLEET_VPN_CLIENT_IPV6"
+    ["{{VIRTUALFLEET_VPN_SERVER_IPV6}}"]="$VIRTUALFLEET_VPN_SERVER_IPV6"
+    ["{{CLOUDHUB_VPN_CLIENT_IPV6}}"]="$CLOUDHUB_VPN_CLIENT_IPV6"
+    ["{{CLOUDHUB_VPN_SERVER_IPV6}}"]="$CLOUDHUB_VPN_SERVER_IPV6"
+    ["{{VPC_ID}}"]="$VPC_ID"
+    ["{{JAIA_CUSTOMER_NAME}}"]="$JAIA_CUSTOMER_NAME"
+    ["{{REGION}}"]="$REGION"
+    ["{{SUBNET_CLOUDHUB_ID}}"]="$SUBNET_CLOUDHUB_ID"
+    ["{{SUBNET_VIRTUALFLEET_ID}}"]="$SUBNET_VIRTUALFLEET_ID"
+    ["{{ACCOUNT_ID}}"]="$ACCOUNT_ID"
+    ["{{VIRTUALFLEET_SECURITY_GROUP_ID}}"]="$VIRTUALFLEET_SECURITY_GROUP_ID"
+)
+for placeholder in "${!replacements[@]}"; do
+    value=${replacements[$placeholder]}
+    sed -i "s|$placeholder|$value|g" "${USER_DATA_FILE}"
+done
+
+# Multiline replacement
 FORMATTED_SSH_KEYS=$(echo "$SSH_PUBKEYS" | sed ':a;N;$!ba;s/\n/|||/g')
-# Use 'sed' to replace the placeholder with the formatted keys
 sed -i "s\\{{SSH_PUBKEYS}}\\$FORMATTED_SSH_KEYS\\" ${USER_DATA_FILE}
-# Restore the newlines in the file
 sed -i 's/|||/\n/g' ${USER_DATA_FILE}
 
-sed -i "s/{{CLOUDHUB_ID}}/${CLOUDHUB_ID}/g" ${USER_DATA_FILE}
-sed -i "s|{{VPN_WIREGUARD_PUBKEY}}|${VPN_WIREGUARD_PUBKEY}|g" ${USER_DATA_FILE}
-sed -i "s/{{VIRTUALFLEET_VPN_CLIENT_IPV6}}/${VIRTUALFLEET_VPN_CLIENT_IPV6}/g" ${USER_DATA_FILE}
-sed -i "s/{{VIRTUALFLEET_VPN_SERVER_IPV6}}/${VIRTUALFLEET_VPN_SERVER_IPV6}/g" ${USER_DATA_FILE}
-sed -i "s/{{CLOUDHUB_VPN_CLIENT_IPV6}}/${CLOUDHUB_VPN_CLIENT_IPV6}/g" ${USER_DATA_FILE}
-sed -i "s/{{CLOUDHUB_VPN_SERVER_IPV6}}/${CLOUDHUB_VPN_SERVER_IPV6}/g" ${USER_DATA_FILE}
 
 # Find the newest AMI matching the tags
 AMI_ID=$(run " " aws ec2 describe-images --filters "Name=tag:jaiabot-rootfs-gen_repository,Values=${REPO}" "Name=tag:jaiabot-rootfs-gen_repository_version,Values=${REPO_VERSION}" --query 'Images | sort_by(@, &CreationDate) | [-1].ImageId')
@@ -206,7 +219,7 @@ block_device_mappings_json=$(jq -n -c \
 network_interfaces_json=$(jq -n -c \
                   --arg subnetId "$SUBNET_CLOUDHUB_ID" \
                   --arg privateIp "$CLOUDHUB_WLAN_IP_ADDRESS" \
-                  --arg groupId "$SECURITY_GROUP_ID" \
+                  --arg groupId "$CLOUDHUB_SECURITY_GROUP_ID" \
                   '[
                      {
                        "DeviceIndex": 0,
@@ -252,12 +265,12 @@ run "" aws ec2 associate-address --network-interface-id $ENI_ID_0 --allocation-i
 echo ">>>>>> Associated Elastic IP Address with EC2 Instance"
 
 # Tag the Resources
-run "" aws ec2 create-tags --resources "$VPC_ID" "$SUBNET_CLOUDHUB_ID" "$SUBNET_VIRTUALFLEET_ID" "$SECURITY_GROUP_ID" "$INTERNET_GATEWAY_ID" "$INSTANCE_ID" "$ROUTE_TABLE_ID" "$EIP_ALLOCATION_ID" "$ENI_ID_0" --tags "Key=jaia_customer,Value=${JAIA_CUSTOMER_NAME}" "Key=jaia_fleet,Value=${FLEET_ID}" "Key=jaiabot-rootfs-gen_repository,Value=${REPO}" "Key=jaiabot-rootfs-gen_repository_version,Value=${REPO_VERSION}"
+run "" aws ec2 create-tags --resources "$VPC_ID" "$SUBNET_CLOUDHUB_ID" "$SUBNET_VIRTUALFLEET_ID" "$CLOUDHUB_SECURITY_GROUP_ID" "$INTERNET_GATEWAY_ID" "$INSTANCE_ID" "$ROUTE_TABLE_ID" "$EIP_ALLOCATION_ID" "$ENI_ID_0" --tags "Key=jaia_customer,Value=${JAIA_CUSTOMER_NAME}" "Key=jaia_fleet,Value=${FLEET_ID}" "Key=jaiabot-rootfs-gen_repository,Value=${REPO}" "Key=jaiabot-rootfs-gen_repository_version,Value=${REPO_VERSION}"
 
 run "" aws ec2 create-tags --resources "$VPC_ID"  --tags "Key=Name,Value=jaia__VPC__${JAIA_CUSTOMER_NAME}"
 run "" aws ec2 create-tags --resources "$SUBNET_CLOUDHUB_ID"  --tags "Key=Name,Value=jaia__Subnet_CloudHub__${JAIA_CUSTOMER_NAME}"
 run "" aws ec2 create-tags --resources "$SUBNET_VIRTUALFLEET_ID"  --tags "Key=Name,Value=jaia__Subnet_VirtualFleet__${JAIA_CUSTOMER_NAME}"
-run "" aws ec2 create-tags --resources "$SECURITY_GROUP_ID"  --tags "Key=Name,Value=jaia__SecurityGroup__${JAIA_CUSTOMER_NAME}"
+run "" aws ec2 create-tags --resources "$CLOUDHUB_SECURITY_GROUP_ID"  --tags "Key=Name,Value=jaia__SecurityGroup__${JAIA_CUSTOMER_NAME}"
 run "" aws ec2 create-tags --resources "$INTERNET_GATEWAY_ID"  --tags "Key=Name,Value=jaia__InternetGateway__${JAIA_CUSTOMER_NAME}"
 run "" aws ec2 create-tags --resources "$ROUTE_TABLE_ID"  --tags "Key=Name,Value=jaia__RouteTable__${JAIA_CUSTOMER_NAME}"
 
@@ -269,14 +282,14 @@ run "" aws ec2 create-tags --resources "$ENI_ID_0" --tags "Key=Name,Value=jaia__
 echo ">>>>>> Tagged resources"
 
 # Wait to get public key
-while SERVER_WIREGUARD_PUBKEY=$(ssh -o ConnectTimeout=10 -o PasswordAuthentication=No jaia@${PUBLIC_IPV4_ADDRESS} "sudo cat /etc/wireguard/publickey" || echo Fail); [ "${SERVER_WIREGUARD_PUBKEY}" == "Fail" ]; do
+while SERVER_WIREGUARD_PUBKEY=$(ssh -o ConnectTimeout=10 -o PasswordAuthentication=No -o StrictHostKeyChecking=no jaia@${PUBLIC_IPV4_ADDRESS} "sudo cat /etc/wireguard/publickey" || echo Fail); [ "${SERVER_WIREGUARD_PUBKEY}" == "Fail" ]; do
     echo ">>>>>> Waiting for server to startup and first-boot configure to get Wireguard public key";
     sleep 5
 done
 
 echo ">>>>>> Server Wireguard Pubkey: ${SERVER_WIREGUARD_PUBKEY}"
 
-run "" aws ec2 revoke-security-group-ingress --group-id $SECURITY_GROUP_ID --ip-permissions IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges='[{CidrIp=0.0.0.0/0}]',Ipv6Ranges='[{CidrIpv6=::/0}]'
+run "" aws ec2 revoke-security-group-ingress --group-id $CLOUDHUB_SECURITY_GROUP_ID --ip-permissions IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges='[{CidrIp=0.0.0.0/0}]',Ipv6Ranges='[{CidrIpv6=::/0}]'
 echo ">>>>>> Removed SSH (port 22) on Security Group"
 
 VFLEET_VPN=wg_jaia_vfleet${FLEET_ID}
@@ -349,13 +362,8 @@ if [[ "$ENABLE_CLIENT_VPN" == "true" ]]; then
         echo ">>>>>> Waiting for CloudHub (${CLOUDHUB_VPN_SERVER_IPV6}) to respond..."
         sleep 1
     done
-    echo ">>>>>> Ping successful!"
-
-    # remove old ssh host info (if any)
-    ssh-keygen -f "$HOME/.ssh/known_hosts" -R ${CLOUDHUB_VPN_SERVER_IPV6} || true
-    
-    echo ">>>>>> Log in with ssh jaia@${CLOUDHUB_VPN_SERVER_IPV6}"
-    ssh jaia@${CLOUDHUB_VPN_SERVER_IPV6}
+    echo ">>>>>> Ping successful!"   
+    echo -e ">>>>>> Now you can log in with\n\tssh jaia@${CLOUDHUB_VPN_SERVER_IPV6}"
 else
     echo ">>>>>> Prototype config for VPNs in /tmp/${VFLEET_VPN} and /tmp/${CLOUD_VPN}.conf. You will need to enable one or both VPNs to access the Cloudhub VM."
 fi
