@@ -3,6 +3,7 @@
 ## Set up VPNs
 (umask 077; wg genkey | tee /etc/wireguard/privatekey | wg pubkey > /etc/wireguard/publickey)
 VPN_PRIVATEKEY=$(cat /etc/wireguard/privatekey)
+VPN_PUBKEY=$(cat /etc/wireguard/publickey)
 
 cat <<EOF > /etc/wireguard/wg_virtualfleet.conf
 ##########################
@@ -74,6 +75,7 @@ hostnamectl set-hostname "jaia-unnamed"
 
 cat <<EOF > /etc/jaiabot/cloud.env
 jaia_fleet_index={{FLEET_ID}}
+jaia_cloudhub_wg_pubkey=${VPN_PUBKEY}
 jaia_aws_vpc_id={{VPC_ID}}
 jaia_aws_customer="{{JAIA_CUSTOMER_NAME}}"
 jaia_aws_region={{REGION}}
@@ -81,10 +83,13 @@ jaia_aws_cloudhub_subnet_id={{SUBNET_CLOUDHUB_ID}}
 jaia_aws_virtualfleet_subnet_id={{SUBNET_VIRTUALFLEET_ID}}
 jaia_aws_account_id={{ACCOUNT_ID}}
 jaia_aws_virtualfleet_security_group={{VIRTUALFLEET_SECURITY_GROUP_ID}}
+jaia_aws_virtualfleet_repository={{REPO}}
+jaia_aws_virtualfleet_repository_version={{REPO_VERSION}}
 EOF
 
-## Install ansible aws
-ansible-galaxy collection install amazon.aws
+## Install latest ansible (required for ansible AWS to work)
+apt-add-repository -y ppa:ansible/ansible
+do apt-get -y install ansible
 
 ## Preseed jaiabot
 mount -o remount,rw /boot/firmware

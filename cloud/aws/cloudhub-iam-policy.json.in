@@ -13,9 +13,9 @@
 			}
 		},
 		{
-			"Sid": "SearchAMIs",
+			"Sid": "DescribeThings",
 			"Effect": "Allow",
-			"Action": "ec2:DescribeImages",
+			"Action": "ec2:Describe*",
 			"Resource": "*"
 		},
 		{
@@ -25,7 +25,7 @@
 			"Resource": [
 				"arn:aws:ec2:{{REGION}}:{{ACCOUNT_ID}}:network-interface/*",
 				"arn:aws:ec2:{{REGION}}:{{ACCOUNT_ID}}:security-group/*",
-				"arn:aws:ec2:{{REGION}}:{{ACCOUNT_ID}}:image/ami-*",
+				"arn:aws:ec2:{{REGION}}::image/ami-*",
 				"arn:aws:ec2:{{REGION}}:{{ACCOUNT_ID}}:instance/*",
 				"arn:aws:ec2:{{REGION}}:{{ACCOUNT_ID}}:volume/*",
 				"arn:aws:ec2:{{REGION}}:{{ACCOUNT_ID}}:key-pair/*"
