@@ -52,9 +52,12 @@ SCRIPT_PATH=$(dirname "$0")
 FLEET_ID_HEX=$(printf '%x\n' ${FLEET_ID})
 VPC_CIDR_BLOCK="10.23.0.0/16"
 # maps onto real fleet IP assignment
-WLAN_CIDR_BLOCK="10.23.${FLEET_ID}.0/24"
+VIRTUALFLEET_WLAN_CIDR_BLOCK="10.23.${FLEET_ID}.0/24"
+VIRTUALFLEET_ETH_CIDR_BLOCK="10.23.254.0/24"
+CLOUDHUB_CIDR_BLOCK="10.23.255.0/24"
 CLOUDHUB_ID=30
-CLOUDHUB_WLAN_IP_ADDRESS="10.23.${FLEET_ID}.$((CLOUDHUB_ID+10))"
+CLOUDHUB_ETH_IP_ADDRESS="10.23.255.$((CLOUDHUB_ID+10))"
+
 # IPv6 address to use for VirtualFleet VPN (fd6e:cf0d:aefa:FLEET_ID_HEX::/48)
 VIRTUALFLEET_VPN_SERVER_CIDR_48="fd6e:cf0d:aefa"
 VIRTUALFLEET_VPN_SERVER_CIDR_64="${VIRTUALFLEET_VPN_SERVER_CIDR_48}:${FLEET_ID_HEX}"
@@ -66,8 +69,8 @@ CLOUDHUB_VPN_SERVER_CIDR_64="${CLOUDHUB_VPN_SERVER_CIDR_48}:${FLEET_ID_HEX}"
 CLOUDHUB_VPN_CLIENT_IPV6="${CLOUDHUB_VPN_SERVER_CIDR_64}::2:1"
 CLOUDHUB_VPN_SERVER_IPV6="${CLOUDHUB_VPN_SERVER_CIDR_64}::0:30"
 # generate Wireguard keys
-VPN_WIREGUARD_PRIVATEKEY=$(wg genkey)
-VPN_WIREGUARD_PUBKEY=$(echo $VPN_WIREGUARD_PRIVATEKEY | wg pubkey)
+CLIENT_VPN_WIREGUARD_PRIVATEKEY=$(wg genkey)
+CLIENT_VPN_WIREGUARD_PUBKEY=$(echo $CLIENT_VPN_WIREGUARD_PRIVATEKEY | wg pubkey)
 
 export AWS_DEFAULT_REGION=$REGION
 ACCOUNT_ID=$(run ".Account" aws sts get-caller-identity)
@@ -126,14 +129,19 @@ echo ">>>>>> Attached Internet Gateway to VPC"
 
 # Create two subnets: 1) Cloudhub where eth0 which has the same IPv4 assignment as wlan0 in the real fleet, plus an IPv6 block and 2) VirtualFleet with just an IPv6 block
 SUBNET_CLOUDHUB_IPV6=$(echo ${VPC_IPV6_BLOCK} | sed 's|00::/56|00::/64|')
-SUBNET_CLOUDHUB_ID=$(run ".Subnet.SubnetId" aws ec2 create-subnet --vpc-id $VPC_ID --cidr-block $WLAN_CIDR_BLOCK --ipv6-cidr-block $SUBNET_CLOUDHUB_IPV6 )
+SUBNET_CLOUDHUB_ID=$(run ".Subnet.SubnetId" aws ec2 create-subnet --vpc-id $VPC_ID --cidr-block $CLOUDHUB_CIDR_BLOCK --ipv6-cidr-block $SUBNET_CLOUDHUB_IPV6 )
 echo ">>>>>> Created CloudHub Subnet with ID: $SUBNET_CLOUDHUB_ID and IPv6: ${SUBNET_CLOUDHUB_IPV6}"
 run "" aws ec2 modify-subnet-attribute --assign-ipv6-address-on-creation --subnet-id ${SUBNET_CLOUDHUB_ID}
 
-SUBNET_VIRTUALFLEET_IPV6=$(echo ${VPC_IPV6_BLOCK} | sed 's|00::/56|01::/64|')
-SUBNET_VIRTUALFLEET_ID=$(run ".Subnet.SubnetId" aws ec2 create-subnet --vpc-id $VPC_ID --ipv6-native --ipv6-cidr-block $SUBNET_VIRTUALFLEET_IPV6)
-echo ">>>>>> Created VirtualFleet Subnet with ID: $SUBNET_VIRTUALFLEET_ID and IPv6: ${SUBNET_VIRTUALFLEET_IPV6}"
-run "" aws ec2 modify-subnet-attribute --assign-ipv6-address-on-creation --subnet-id ${SUBNET_VIRTUALFLEET_ID}
+SUBNET_VIRTUALFLEET_ETH_IPV6=$(echo ${VPC_IPV6_BLOCK} | sed 's|00::/56|01::/64|')
+SUBNET_VIRTUALFLEET_ETH_ID=$(run ".Subnet.SubnetId" aws ec2 create-subnet --vpc-id $VPC_ID --cidr-block $VIRTUALFLEET_ETH_CIDR_BLOCK --ipv6-cidr-block $SUBNET_VIRTUALFLEET_ETH_IPV6)
+echo ">>>>>> Created VirtualFleet Subnet with ID: $SUBNET_VIRTUALFLEET_ETH_ID and IPv6: ${SUBNET_VIRTUALFLEET_ETH_IPV6}"
+run "" aws ec2 modify-subnet-attribute --assign-ipv6-address-on-creation --subnet-id ${SUBNET_VIRTUALFLEET_ETH_ID}
+
+SUBNET_VIRTUALFLEET_WLAN_IPV6=$(echo ${VPC_IPV6_BLOCK} | sed 's|00::/56|02::/64|')
+SUBNET_VIRTUALFLEET_WLAN_ID=$(run ".Subnet.SubnetId" aws ec2 create-subnet --vpc-id $VPC_ID --cidr-block $VIRTUALFLEET_WLAN_CIDR_BLOCK --ipv6-cidr-block $SUBNET_VIRTUALFLEET_WLAN_IPV6)
+echo ">>>>>> Created VirtualFleet Subnet with ID: $SUBNET_VIRTUALFLEET_WLAN_ID and IPv6: ${SUBNET_VIRTUALFLEET_WLAN_IPV6}"
+run "" aws ec2 modify-subnet-attribute --assign-ipv6-address-on-creation --subnet-id ${SUBNET_VIRTUALFLEET_WLAN_ID}
 
 # Create a Security Group for CloudHub
 CLOUDHUB_SECURITY_GROUP_ID=$(run '.GroupId' aws ec2 create-security-group --group-name "jaia__SecurityGroup_CloudHub__${JAIA_CUSTOMER_NAME}" --description "jaia__${JAIA_CUSTOMER_NAME} CloudHub Security Group" --vpc-id $VPC_ID)
@@ -156,6 +164,13 @@ run "" aws ec2 create-route --route-table-id $ROUTE_TABLE_ID --destination-cidr-
 run "" aws ec2 create-route --route-table-id $ROUTE_TABLE_ID --destination-ipv6-cidr-block ::/0 --gateway-id $INTERNET_GATEWAY_ID
 echo ">>>>>> Modified the main route table to use the Internet Gateway"
 
+
+# Allocate an Elastic IP Address
+EIP_ALLOCATION_ID=$(run '.AllocationId' aws ec2 allocate-address)
+echo ">>>>>> Allocated Elastic IP Address with Allocation ID: $EIP_ALLOCATION_ID"
+
+PUBLIC_IPV4_ADDRESS=$(run ".Addresses[0].PublicIp" aws ec2 describe-addresses --allocation-ids $EIP_ALLOCATION_ID)
+
 ## Launch the actual VM (CloudHub)
 USER_DATA_FILE_IN="${SCRIPT_PATH}/cloud-init-user-data.sh.in"
 USER_DATA_FILE="/tmp/cloud-init-user-data.sh"
@@ -166,21 +181,23 @@ cp ${USER_DATA_FILE_IN} ${USER_DATA_FILE}
 
 declare -A replacements=(
     ["{{ACCOUNT_ID}}"]="$ACCOUNT_ID"
+    ["{{CLIENT_VPN_WIREGUARD_PUBKEY}}"]="$CLIENT_VPN_WIREGUARD_PUBKEY"
     ["{{CLOUDHUB_ID}}"]="$CLOUDHUB_ID"
     ["{{CLOUDHUB_VPN_CLIENT_IPV6}}"]="$CLOUDHUB_VPN_CLIENT_IPV6"
     ["{{CLOUDHUB_VPN_SERVER_IPV6}}"]="$CLOUDHUB_VPN_SERVER_IPV6"
     ["{{FLEET_ID}}"]="$FLEET_ID"
     ["{{JAIA_CUSTOMER_NAME}}"]="$JAIA_CUSTOMER_NAME"
+    ["{{PUBLIC_IPV4_ADDRESS}}"]="$PUBLIC_IPV4_ADDRESS"
     ["{{REGION}}"]="$REGION"
     ["{{REPO}}"]="$REPO"
     ["{{REPO_VERSION}}"]="$REPO_VERSION"
     ["{{SUBNET_CLOUDHUB_ID}}"]="$SUBNET_CLOUDHUB_ID"
-    ["{{SUBNET_VIRTUALFLEET_ID}}"]="$SUBNET_VIRTUALFLEET_ID"
+    ["{{SUBNET_VIRTUALFLEET_ETH_ID}}"]="$SUBNET_VIRTUALFLEET_ETH_ID"
+    ["{{SUBNET_VIRTUALFLEET_WLAN_ID}}"]="$SUBNET_VIRTUALFLEET_WLAN_ID"
     ["{{VPC_ID}}"]="$VPC_ID"
     ["{{VIRTUALFLEET_SECURITY_GROUP_ID}}"]="$VIRTUALFLEET_SECURITY_GROUP_ID"
     ["{{VIRTUALFLEET_VPN_CLIENT_IPV6}}"]="$VIRTUALFLEET_VPN_CLIENT_IPV6"
     ["{{VIRTUALFLEET_VPN_SERVER_IPV6}}"]="$VIRTUALFLEET_VPN_SERVER_IPV6"
-    ["{{VPN_WIREGUARD_PUBKEY}}"]="$VPN_WIREGUARD_PUBKEY"
 )
 
 for placeholder in "${!replacements[@]}"; do
@@ -221,7 +238,7 @@ block_device_mappings_json=$(jq -n -c \
 # Construct the network interfaces JSON using jq
 network_interfaces_json=$(jq -n -c \
                   --arg subnetId "$SUBNET_CLOUDHUB_ID" \
-                  --arg privateIp "$CLOUDHUB_WLAN_IP_ADDRESS" \
+                  --arg privateIp "$CLOUDHUB_ETH_IP_ADDRESS" \
                   --arg groupId "$CLOUDHUB_SECURITY_GROUP_ID" \
                   '[
                      {
@@ -255,12 +272,6 @@ done
 ENI_ID_0=$(run ".NetworkInterfaces[0].NetworkInterfaceId" aws ec2 describe-network-interfaces --filters "Name=attachment.instance-id,Values=$INSTANCE_ID" "Name=attachment.device-index,Values=0")
 echo ">>>>>> ENI ID: $ENI_ID_0"
 
-# Allocate an Elastic IP Address
-EIP_ALLOCATION_ID=$(run '.AllocationId' aws ec2 allocate-address)
-echo ">>>>>> Allocated Elastic IP Address with Allocation ID: $EIP_ALLOCATION_ID"
-
-PUBLIC_IPV4_ADDRESS=$(run ".Addresses[0].PublicIp" aws ec2 describe-addresses --allocation-ids $EIP_ALLOCATION_ID)
-
 echo ">>>>>> Instance is running. Proceeding to associate Elastic IP Address."
 
 # Associate the Elastic IP Address with the EC2 Instance
@@ -268,11 +279,26 @@ run "" aws ec2 associate-address --network-interface-id $ENI_ID_0 --allocation-i
 echo ">>>>>> Associated Elastic IP Address with EC2 Instance"
 
 # Tag the Resources
-run "" aws ec2 create-tags --resources "$VPC_ID" "$SUBNET_CLOUDHUB_ID" "$SUBNET_VIRTUALFLEET_ID" "$CLOUDHUB_SECURITY_GROUP_ID" "$INTERNET_GATEWAY_ID" "$INSTANCE_ID" "$ROUTE_TABLE_ID" "$EIP_ALLOCATION_ID" "$ENI_ID_0" --tags "Key=jaia_customer,Value=${JAIA_CUSTOMER_NAME}" "Key=jaia_fleet,Value=${FLEET_ID}" "Key=jaiabot-rootfs-gen_repository,Value=${REPO}" "Key=jaiabot-rootfs-gen_repository_version,Value=${REPO_VERSION}"
+run "" aws ec2 create-tags --resources "$VPC_ID" \
+    "$SUBNET_CLOUDHUB_ID" \
+    "$SUBNET_VIRTUALFLEET_ETH_ID" \
+    "$SUBNET_VIRTUALFLEET_WLAN_ID" \
+    "$CLOUDHUB_SECURITY_GROUP_ID" \
+    "$INTERNET_GATEWAY_ID" \
+    "$INSTANCE_ID" \
+    "$ROUTE_TABLE_ID" \
+    "$EIP_ALLOCATION_ID" \
+    "$ENI_ID_0" \
+    --tags \
+    "Key=jaia_customer,Value=${JAIA_CUSTOMER_NAME}" \
+    "Key=jaia_fleet,Value=${FLEET_ID}" \
+    "Key=jaiabot-rootfs-gen_repository,Value=${REPO}" \
+    "Key=jaiabot-rootfs-gen_repository_version,Value=${REPO_VERSION}"
 
 run "" aws ec2 create-tags --resources "$VPC_ID"  --tags "Key=Name,Value=jaia__VPC__${JAIA_CUSTOMER_NAME}"
 run "" aws ec2 create-tags --resources "$SUBNET_CLOUDHUB_ID"  --tags "Key=Name,Value=jaia__Subnet_CloudHub__${JAIA_CUSTOMER_NAME}"
-run "" aws ec2 create-tags --resources "$SUBNET_VIRTUALFLEET_ID"  --tags "Key=Name,Value=jaia__Subnet_VirtualFleet__${JAIA_CUSTOMER_NAME}"
+run "" aws ec2 create-tags --resources "$SUBNET_VIRTUALFLEET_ETH_ID"  --tags "Key=Name,Value=jaia__Subnet_VirtualFleet_ETH__${JAIA_CUSTOMER_NAME}"
+run "" aws ec2 create-tags --resources "$SUBNET_VIRTUALFLEET_WLAN_ID"  --tags "Key=Name,Value=jaia__Subnet_VirtualFleet_WLAN__${JAIA_CUSTOMER_NAME}"
 run "" aws ec2 create-tags --resources "$CLOUDHUB_SECURITY_GROUP_ID"  --tags "Key=Name,Value=jaia__SecurityGroup__${JAIA_CUSTOMER_NAME}"
 run "" aws ec2 create-tags --resources "$INTERNET_GATEWAY_ID"  --tags "Key=Name,Value=jaia__InternetGateway__${JAIA_CUSTOMER_NAME}"
 run "" aws ec2 create-tags --resources "$ROUTE_TABLE_ID"  --tags "Key=Name,Value=jaia__RouteTable__${JAIA_CUSTOMER_NAME}"
@@ -348,8 +374,8 @@ echo ">>>>>> Public IPv4 address: ${PUBLIC_IPV4_ADDRESS}"
 
 
 if [[ "$ENABLE_CLIENT_VPN" == "true" ]]; then
-    sed -i "s|.*PrivateKey.*|PrivateKey = ${VPN_WIREGUARD_PRIVATEKEY}|" /tmp/${VFLEET_VPN}.conf
-    sed -i "s|.*PrivateKey.*|PrivateKey = ${VPN_WIREGUARD_PRIVATEKEY}|" /tmp/${CLOUD_VPN}.conf
+    sed -i "s|.*PrivateKey.*|PrivateKey = ${CLIENT_VPN_WIREGUARD_PRIVATEKEY}|" /tmp/${VFLEET_VPN}.conf
+    sed -i "s|.*PrivateKey.*|PrivateKey = ${CLIENT_VPN_WIREGUARD_PRIVATEKEY}|" /tmp/${CLOUD_VPN}.conf
     sudo mv /tmp/${VFLEET_VPN}.conf /tmp/${CLOUD_VPN}.conf /etc/wireguard
     sudo systemctl enable wg-quick@${VFLEET_VPN}
     sudo systemctl restart wg-quick@${VFLEET_VPN}
