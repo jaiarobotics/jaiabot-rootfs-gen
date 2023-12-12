@@ -11,9 +11,7 @@ source $1
 set +a
 
 set -u -e
-
- set -x
-
+set -x
 
 SCRIPT_PATH=$(dirname "$0")
 FLEET_ID_HEX=$(printf '%x\n' ${FLEET_ID})
@@ -24,18 +22,25 @@ handle_failure() {
 }
 trap handle_failure ERR
 
-
 VPC_CIDR_BLOCK="10.23.0.0/16"
 # maps onto real fleet IP assignment
 WLAN_CIDR_BLOCK="10.23.${FLEET_ID}.0/24"
 CLOUDHUB_ID=30
 CLOUDHUB_WLAN_IP_ADDRESS="10.23.${FLEET_ID}.$((CLOUDHUB_ID+10))"
 # IPv6 address to use for VirtualFleet VPN (fd6e:cf0d:aefa:FLEET_ID_HEX::/48)
-VIRTUALFLEET_VPN_CLIENT_IPV6="fd6e:cf0d:aefa:${FLEET_ID_HEX}::2:1"
-VIRTUALFLEET_VPN_SERVER_IPV6="fd6e:cf0d:aefa:${FLEET_ID_HEX}::0:30"
+VIRTUALFLEET_VPN_SERVER_PREFIX="fd6e:cf0d:aefa:${FLEET_ID_HEX}::"
+VIRTUALFLEET_VPN_CLIENT_IPV6="${VIRTUALFLEET_VPN_SERVER_PREFIX}2:1"
+VIRTUALFLEET_VPN_SERVER_IPV6="${VIRTUALFLEET_VPN_SERVER_PREFIX}0:30"
 # IPv6 address to use for VirtualFleet VPN (fd0f:77ac:4fdf:FLEET_ID_HEX::/48)
-CLOUDHUB_VPN_CLIENT_IPV6="fd0f:77ac:4fdf:${FLEET_ID_HEX}::2:1"
-CLOUDHUB_VPN_SERVER_IPV6="fd0f:77ac:4fdf:${FLEET_ID_HEX}::0:30"
+CLOUDHUB_VPN_SERVER_PREFIX="fd0f:77ac:4fdf:${FLEET_ID_HEX}::"
+CLOUDHUB_VPN_CLIENT_IPV6="${CLOUDHUB_VPN_SERVER_PREFIX}2:1"
+CLOUDHUB_VPN_SERVER_IPV6="${CLOUDHUB_VPN_SERVER_PREFIX}0:30"
+# generate Wireguard keys
+VPN_WIREGUARD_PRIVATEKEY=$(wg genkey)
+VPN_WIREGUARD_PUBKEY=$(echo $VPN_WIREGUARD_PRIVATEKEY | wg pubkey)
+
+export AWS_DEFAULT_REGION=$REGION
+ACCOUNT_ID=$(aws sts get-caller-identity --query "Account" --output text)
 
 # Create a VPC
 VPC_ID=$(aws ec2 create-vpc --cidr-block "$VPC_CIDR_BLOCK" --amazon-provided-ipv6-cidr-block --query 'Vpc.VpcId' --output text)
@@ -43,6 +48,39 @@ echo "Created VPC with ID: $VPC_ID"
 
 VPC_IPV6_BLOCK=$(aws ec2 describe-vpcs --vpc-id ${VPC_ID} --query Vpcs[].Ipv6CidrBlockAssociationSet[].Ipv6CidrBlock --output text)
 echo "Created VPC IPV6 block: $VPC_IPV6_BLOCK"
+
+# Create Policy for CloudHub to manage VirtualFleet instances
+POLICY_FILE_IN="${SCRIPT_PATH}/cloudhub-iam-policy.json.in"
+POLICY_FILE="/tmp/cloudhub-iam-policy.json"
+
+cp ${POLICY_FILE_IN} ${POLICY_FILE}
+sed -i "s/{{REGION}}/${REGION}/g" ${POLICY_FILE}
+sed -i "s/{{ACCOUNT_ID}}/${ACCOUNT_ID}/g" ${POLICY_FILE}
+sed -i "s/{{VPC_ID}}/${VPC_ID}/g" ${POLICY_FILE}
+
+role_name="JaiaCloudHubFleet${FLEET_ID}__Role"
+policy_name="JaiaCloudHubFleet${FLEET_ID}__Policy"
+instance_profile_name="JaiaCloudHubFleet${FLEET_ID}__InstanceProfile"
+
+if aws iam get-instance-profile --instance-profile-name "$instance_profile_name"; then
+    echo "Instance profile already exists. Deleting."
+    aws iam remove-role-from-instance-profile --instance-profile-name "$instance_profile_name" --role-name "$role_name" || true
+    aws iam delete-instance-profile --instance-profile-name "$instance_profile_name"
+fi
+
+if aws iam get-role --role-name "$role_name"; then
+    echo "Role already exists. Deleting."
+    aws iam delete-role-policy --role-name "$role_name" --policy-name "$policy_name" || true
+    aws iam delete-role --role-name "$role_name"
+fi
+
+echo "Creating role."
+aws iam create-role --role-name "$role_name" --assume-role-policy-document file://cloudhub-trust-policy.json
+aws iam put-role-policy --role-name "$role_name" --policy-name "$policy_name" --policy-document file://${POLICY_FILE}
+
+echo "Creating instance profile."
+aws iam create-instance-profile --instance-profile-name "$instance_profile_name"
+aws iam add-role-to-instance-profile --instance-profile-name "$instance_profile_name" --role-name "$role_name"
 
 # Create an Internet Gateway
 INTERNET_GATEWAY_ID=$(aws ec2 create-internet-gateway --query 'InternetGateway.InternetGatewayId' --output text)
@@ -59,7 +97,7 @@ echo "Created CloudHub Subnet with ID: $SUBNET_CLOUDHUB_ID and IPv6: ${SUBNET_CL
 aws ec2 modify-subnet-attribute --assign-ipv6-address-on-creation --subnet-id ${SUBNET_CLOUDHUB_ID}
 
 SUBNET_VIRTUALFLEET_IPV6=$(echo ${VPC_IPV6_BLOCK} | sed 's|00::/56|01::/64|')
-SUBNET_VIRTUALFLEET_ID=$(aws ec2 create-subnet --vpc-id "$VPC_ID" --ipv6-cidr-block "$SUBNET_VIRTUALFLEET_IPV6" --query 'Subnet.SubnetId' --output text)
+SUBNET_VIRTUALFLEET_ID=$(aws ec2 create-subnet --vpc-id "$VPC_ID" --ipv6-native --ipv6-cidr-block "$SUBNET_VIRTUALFLEET_IPV6" --query 'Subnet.SubnetId' --output text)
 echo "Created VirtualFleet Subnet with ID: $SUBNET_VIRTUALFLEET_ID and IPv6: ${SUBNET_VIRTUALFLEET_IPV6}"
 aws ec2 modify-subnet-attribute --assign-ipv6-address-on-creation --subnet-id ${SUBNET_VIRTUALFLEET_ID}
 
@@ -81,13 +119,21 @@ aws ec2 create-route --route-table-id "$ROUTE_TABLE_ID" --destination-ipv6-cidr-
 echo "Modified the main route table to use the Internet Gateway"
 
 ## Launch the actual VM (CloudHub)
-USER_DATA_FILE_IN="${SCRIPT_PATH}/cloud-init-user-data.txt.in"
-USER_DATA_FILE="${SCRIPT_PATH}/cloud-init-user-data.txt"
+USER_DATA_FILE_IN="${SCRIPT_PATH}/cloud-init-user-data.sh.in"
+USER_DATA_FILE="/tmp/cloud-init-user-data.sh"
 DISK_SIZE_GB=32
 
 # replace some {{MACROS}} in the user data
 cp ${USER_DATA_FILE_IN} ${USER_DATA_FILE}
 sed -i "s/{{FLEET_ID}}/${FLEET_ID}/g" ${USER_DATA_FILE}
+
+# Replace newlines in the variable with a unique pattern, e.g., '|||'
+FORMATTED_SSH_KEYS=$(echo "$SSH_PUBKEYS" | sed ':a;N;$!ba;s/\n/|||/g')
+# Use 'sed' to replace the placeholder with the formatted keys
+sed -i "s\\{{SSH_PUBKEYS}}\\$FORMATTED_SSH_KEYS\\" ${USER_DATA_FILE}
+# Restore the newlines in the file
+sed -i 's/|||/\n/g' ${USER_DATA_FILE}
+
 sed -i "s/{{CLOUDHUB_ID}}/${CLOUDHUB_ID}/g" ${USER_DATA_FILE}
 sed -i "s|{{VPN_WIREGUARD_PUBKEY}}|${VPN_WIREGUARD_PUBKEY}|g" ${USER_DATA_FILE}
 sed -i "s/{{VIRTUALFLEET_VPN_CLIENT_IPV6}}/${VIRTUALFLEET_VPN_CLIENT_IPV6}/g" ${USER_DATA_FILE}
@@ -113,6 +159,7 @@ INSTANCE_ID=$(aws ec2 run-instances \
                   --block-device-mappings "[{\"DeviceName\":\"/dev/sda1\",\"Ebs\":{\"VolumeSize\":$DISK_SIZE_GB,\"VolumeType\":\"gp3\"}}]" \
                   --user-data file://"$USER_DATA_FILE" \
                   --network-interfaces "[{\"DeviceIndex\":0,\"DeleteOnTermination\":true,\"SubnetId\":\"$SUBNET_CLOUDHUB_ID\",\"PrivateIpAddress\":\"$CLOUDHUB_WLAN_IP_ADDRESS\",\"Groups\":[\"$SECURITY_GROUP_ID\"]}]" \
+                  --iam-instance-profile "Name=$instance_profile_name" \
                   --query "Instances[0].InstanceId" --output text)
 
 echo "EC2 Instance launched successfully with ID: $INSTANCE_ID"
@@ -175,8 +222,7 @@ echo "Removed SSH (port 22) on Security Group"
 
 VFLEET_VPN=wg_jaia_vfleet${FLEET_ID}
 CLOUD_VPN=wg_jaia_cloud${FLEET_ID}
-cat <<EOF >> /tmp/${VFLEET_VPN}.conf
-# Write client VPN
+cat <<EOF > /tmp/${VFLEET_VPN}.conf
 [Interface]
 # from /etc/wireguard/privatekey on client
 PrivateKey = ...
@@ -199,8 +245,7 @@ PersistentKeepalive = 52
 
 EOF
 
-cat <<EOF >> /tmp/${CLOUD_VPN}.conf
-# Write client VPN
+cat <<EOF > /tmp/${CLOUD_VPN}.conf
 [Interface]
 # from /etc/wireguard/privatekey on client
 PrivateKey = ...
@@ -223,14 +268,13 @@ PersistentKeepalive = 52
 EOF
 
 
-echo "SUCCESS: Started CloudHub in Fleet $FLEET_ID:"
-echo -e "\tPublic IPv4 address: ${PUBLIC_IPV4_ADDRESS}"
+echo "Started CloudHub in Fleet $FLEET_ID:"
+echo "Public IPv4 address: ${PUBLIC_IPV4_ADDRESS}"
 
 
 if [[ "$ENABLE_CLIENT_VPN" == "true" ]]; then
-    VPN_PRIVATEKEY=$(sudo cat ${VPN_WIREGUARD_PRIVATEKEY_FILE})
-    sed -i "s/.*PrivateKey.*/PrivateKey = ${VPN_PRIVATEKEY}/" /tmp/${VFLEET_VPN}.conf
-    sed -i "s/.*PrivateKey.*/PrivateKey = ${VPN_PRIVATEKEY}/" /tmp/${CLOUD_VPN}.conf
+    sed -i "s|.*PrivateKey.*|PrivateKey = ${VPN_WIREGUARD_PRIVATEKEY}|" /tmp/${VFLEET_VPN}.conf
+    sed -i "s|.*PrivateKey.*|PrivateKey = ${VPN_WIREGUARD_PRIVATEKEY}|" /tmp/${CLOUD_VPN}.conf
     sudo mv /tmp/${VFLEET_VPN}.conf /tmp/${CLOUD_VPN}.conf /etc/wireguard
     sudo systemctl enable wg-quick@${VFLEET_VPN}
     sudo systemctl restart wg-quick@${VFLEET_VPN}
@@ -238,12 +282,18 @@ if [[ "$ENABLE_CLIENT_VPN" == "true" ]]; then
     sudo systemctl enable wg-quick@${CLOUD_VPN}
     sudo systemctl restart wg-quick@${CLOUD_VPN}
 
-    echo -e "\tEnabled VPNs:"
+    echo "Enabled VPNs:"
     sudo wg show ${VFLEET_VPN}
     sudo wg show ${CLOUD_VPN}
-
-    echo -e "\tLog in with ssh jaia@${VIRTUALFLEET_VPN_SERVER_IPV6}"
+    while ! ping6 -c 1 "${CLOUDHUB_VPN_SERVER_IPV6}" &> /dev/null
+    do
+        echo "Waiting for CloudHub (${CLOUDHUB_VPN_SERVER_IPV6}) to respond..."
+        sleep 1
+    done
+    echo "Ping successful!"        
+    echo "Log in with ssh jaia@${CLOUDHUB_VPN_SERVER_IPV6}"
 else
     echo "Prototype config for VPNs in /tmp/${VFLEET_VPN} and /tmp/${CLOUD_VPN}.conf. You will need to enable one or both VPNs to access the Cloudhub VM."
 fi
 
+echo "SUCCESS"
