@@ -378,6 +378,8 @@ echo ">>>>>> Public IPv4 address: ${PUBLIC_IPV4_ADDRESS}"
 
 
 if [[ "$ENABLE_CLIENT_VPN" == "true" ]]; then
+    echo ">>>>>> Begin installing local VPNs to /etc/wireguard/${VFLEET_VPN}.conf and /etc/wireguard/${CLOUD_VPN}.conf"
+
     sed -i "s|.*PrivateKey.*|PrivateKey = ${CLIENT_VPN_WIREGUARD_PRIVATEKEY}|" /tmp/${VFLEET_VPN}.conf
     sed -i "s|.*PrivateKey.*|PrivateKey = ${CLIENT_VPN_WIREGUARD_PRIVATEKEY}|" /tmp/${CLOUD_VPN}.conf
     sudo mv /tmp/${VFLEET_VPN}.conf /tmp/${CLOUD_VPN}.conf /etc/wireguard
@@ -392,7 +394,7 @@ if [[ "$ENABLE_CLIENT_VPN" == "true" ]]; then
     sudo wg show ${CLOUD_VPN}
     while ! ping6 -c 1 "${CLOUDHUB_VPN_SERVER_IPV6}" &> /dev/null
     do
-        echo ">>>>>> Waiting for CloudHub (${CLOUDHUB_VPN_SERVER_IPV6}) to respond..."
+        echo ">>>>>> Waiting for CloudHub (${CLOUDHUB_VPN_SERVER_IPV6}) to respond (this may take several minutes)..."
         sleep 1
     done
     echo ">>>>>> Ping successful!"   
