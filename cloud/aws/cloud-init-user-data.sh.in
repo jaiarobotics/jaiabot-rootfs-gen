@@ -5,6 +5,12 @@
 SERVER_VPN_PRIVATEKEY=$(cat /etc/wireguard/privatekey)
 SERVER_VPN_PUBKEY=$(cat /etc/wireguard/publickey)
 
+cat <<EOF > /etc/sysctl.d/wg.conf
+net.ipv4.ip_forward = 1
+net.ipv6.conf.all.forwarding = 1
+net.ipv6.conf.eth0.accept_ra = 2
+EOF
+
 cat <<EOF > /etc/wireguard/wg_virtualfleet.conf
 ##########################
 #### VirtualFleet #########
@@ -21,8 +27,8 @@ ListenPort = 51820
 # PrivateKey (contents of /etc/wireguard/privatekey)
 PrivateKey = ${SERVER_VPN_PRIVATEKEY}
 
-PostUp = iptables -w 60 -A FORWARD -i wg_virtualfleet -j ACCEPT; iptables -w 60 -t nat -A POSTROUTING -o eth0 -j MASQUERADE
-PostDown = iptables -w 60 -D FORWARD -i wg_virtualfleet -j ACCEPT; iptables -w 60 -t nat -D POSTROUTING -o eth0 -j MASQUERADE
+PostUp = iptables -w 60 -A FORWARD -i wg_virtualfleet -j ACCEPT; iptables -w 60 -t nat -A POSTROUTING -o eth0 -j MASQUERADE; ip6tables -A FORWARD -i eth0 -o wg_virtualfleet -j ACCEPT; ip6tables -A FORWARD -i wg_virtualfleet -j ACCEPT;
+PostDown = iptables -w 60 -D FORWARD -i wg_virtualfleet -j ACCEPT; iptables -w 60 -t nat -D POSTROUTING -o eth0 -j MASQUERADE;ip6tables -D FORWARD -i eth0 -o wg_virtualfleet -j ACCEPT; ip6tables -D FORWARD -i wg_virtualfleet -j ACCEPT;
 
 [Peer]
 # Initial Setup Client
@@ -48,8 +54,8 @@ ListenPort = 51821
 # PrivateKey (contents of /etc/wireguard/privatekey)
 PrivateKey = ${SERVER_VPN_PRIVATEKEY}
 
-PostUp = iptables -w 60 -A FORWARD -i wg_cloudhub -j ACCEPT; iptables -w 60 -t nat -A POSTROUTING -o eth0 -j MASQUERADE
-PostDown = iptables -w 60 -D FORWARD -i wg_cloudhub -j ACCEPT; iptables -w 60 -t nat -D POSTROUTING -o eth0 -j MASQUERADE
+PostUp = iptables -w 60 -A FORWARD -i wg_cloudhub -j ACCEPT; iptables -w 60 -t nat -A POSTROUTING -o eth0 -j MASQUERADE; ip6tables -A FORWARD -i eth0 -o wg_cloudhub -j ACCEPT; ip6tables -A FORWARD -i wg_cloudhub -j ACCEPT;
+PostDown = iptables -w 60 -D FORWARD -i wg_cloudhub -j ACCEPT; iptables -w 60 -t nat -D POSTROUTING -o eth0 -j MASQUERADE; ip6tables -D FORWARD -i eth0 -o wg_cloudhub -j ACCEPT; ip6tables -D FORWARD -i wg_cloudhub -j ACCEPT;
 
 [Peer]
 # Initial Setup Client
