@@ -130,17 +130,17 @@ run "" aws ec2 attach-internet-gateway --vpc-id $VPC_ID --internet-gateway-id $I
 echo ">>>>>> Attached Internet Gateway to VPC"
 
 # Create two subnets: 1) Cloudhub where eth0 which has the same IPv4 assignment as wlan0 in the real fleet, plus an IPv6 block and 2) VirtualFleet with just an IPv6 block
-SUBNET_CLOUDHUB_IPV6=$(echo ${VPC_IPV6_BLOCK} | sed 's|00::/56|00::/64|')
+SUBNET_CLOUDHUB_IPV6=$($IP_PY net --net cloudhub_eth --fleet_id ${FLEET_ID} --ipv6 --ipv6_base ${VPC_IPV6_BLOCK})
 SUBNET_CLOUDHUB_ID=$(run ".Subnet.SubnetId" aws ec2 create-subnet --vpc-id $VPC_ID --cidr-block $CLOUDHUB_CIDR_BLOCK --ipv6-cidr-block $SUBNET_CLOUDHUB_IPV6 )
 echo ">>>>>> Created CloudHub Subnet with ID: $SUBNET_CLOUDHUB_ID and IPv6: ${SUBNET_CLOUDHUB_IPV6}"
 run "" aws ec2 modify-subnet-attribute --assign-ipv6-address-on-creation --subnet-id ${SUBNET_CLOUDHUB_ID}
 
-SUBNET_VIRTUALFLEET_ETH_IPV6=$(echo ${VPC_IPV6_BLOCK} | sed 's|00::/56|01::/64|')
+SUBNET_VIRTUALFLEET_ETH_IPV6=$($IP_PY net --net vfleet_eth --fleet_id ${FLEET_ID} --ipv6 --ipv6_base ${VPC_IPV6_BLOCK})
 SUBNET_VIRTUALFLEET_ETH_ID=$(run ".Subnet.SubnetId" aws ec2 create-subnet --vpc-id $VPC_ID --cidr-block $VIRTUALFLEET_ETH_CIDR_BLOCK --ipv6-cidr-block $SUBNET_VIRTUALFLEET_ETH_IPV6)
 echo ">>>>>> Created VirtualFleet Subnet with ID: $SUBNET_VIRTUALFLEET_ETH_ID and IPv6: ${SUBNET_VIRTUALFLEET_ETH_IPV6}"
 run "" aws ec2 modify-subnet-attribute --assign-ipv6-address-on-creation --subnet-id ${SUBNET_VIRTUALFLEET_ETH_ID}
 
-SUBNET_VIRTUALFLEET_WLAN_IPV6=$(echo ${VPC_IPV6_BLOCK} | sed 's|00::/56|02::/64|')
+SUBNET_VIRTUALFLEET_WLAN_IPV6=$($IP_PY net --net vfleet_wlan --fleet_id ${FLEET_ID} --ipv6 --ipv6_base ${VPC_IPV6_BLOCK})
 SUBNET_VIRTUALFLEET_WLAN_ID=$(run ".Subnet.SubnetId" aws ec2 create-subnet --vpc-id $VPC_ID --cidr-block $VIRTUALFLEET_WLAN_CIDR_BLOCK --ipv6-cidr-block $SUBNET_VIRTUALFLEET_WLAN_IPV6)
 echo ">>>>>> Created VirtualFleet Subnet with ID: $SUBNET_VIRTUALFLEET_WLAN_ID and IPv6: ${SUBNET_VIRTUALFLEET_WLAN_IPV6}"
 run "" aws ec2 modify-subnet-attribute --assign-ipv6-address-on-creation --subnet-id ${SUBNET_VIRTUALFLEET_WLAN_ID}
@@ -301,7 +301,8 @@ run "" aws ec2 create-tags --resources "$VPC_ID"  --tags "Key=Name,Value=jaia__V
 run "" aws ec2 create-tags --resources "$SUBNET_CLOUDHUB_ID"  --tags "Key=Name,Value=jaia__Subnet_CloudHub__${JAIA_CUSTOMER_NAME}"
 run "" aws ec2 create-tags --resources "$SUBNET_VIRTUALFLEET_ETH_ID"  --tags "Key=Name,Value=jaia__Subnet_VirtualFleet_ETH__${JAIA_CUSTOMER_NAME}"
 run "" aws ec2 create-tags --resources "$SUBNET_VIRTUALFLEET_WLAN_ID"  --tags "Key=Name,Value=jaia__Subnet_VirtualFleet_WLAN__${JAIA_CUSTOMER_NAME}"
-run "" aws ec2 create-tags --resources "$CLOUDHUB_SECURITY_GROUP_ID"  --tags "Key=Name,Value=jaia__SecurityGroup__${JAIA_CUSTOMER_NAME}"
+run "" aws ec2 create-tags --resources "$CLOUDHUB_SECURITY_GROUP_ID"  --tags "Key=Name,Value=jaia__SecurityGroup_CloudHub__${JAIA_CUSTOMER_NAME}"
+run "" aws ec2 create-tags --resources "$VIRTUALFLEET_SECURITY_GROUP_ID"  --tags "Key=Name,Value=jaia__SecurityGroup_VirtualFleet__${JAIA_CUSTOMER_NAME}"
 run "" aws ec2 create-tags --resources "$INTERNET_GATEWAY_ID"  --tags "Key=Name,Value=jaia__InternetGateway__${JAIA_CUSTOMER_NAME}"
 run "" aws ec2 create-tags --resources "$ROUTE_TABLE_ID"  --tags "Key=Name,Value=jaia__RouteTable__${JAIA_CUSTOMER_NAME}"
 
@@ -313,8 +314,9 @@ run "" aws ec2 create-tags --resources "$ENI_ID_0" --tags "Key=Name,Value=jaia__
 echo ">>>>>> Tagged resources"
 
 # Wait to get public key
+echo ">>>>>> Waiting for server to startup and first-boot configure to get Wireguard public key";
 while SERVER_WIREGUARD_PUBKEY=$(ssh -o ConnectTimeout=10 -o PasswordAuthentication=No -o StrictHostKeyChecking=no jaia@${PUBLIC_IPV4_ADDRESS} "sudo cat /etc/wireguard/publickey" || echo Fail); [ "${SERVER_WIREGUARD_PUBKEY}" == "Fail" ]; do
-    echo ">>>>>> Waiting for server to startup and first-boot configure to get Wireguard public key";
+    echo ">>>>>> Please keep waiting (Connection refused and Permission denied are *expected* for a while...";
     sleep 5
 done
 

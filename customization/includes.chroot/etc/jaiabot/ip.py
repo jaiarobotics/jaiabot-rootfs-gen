@@ -14,7 +14,6 @@ ipv_group = parser.add_mutually_exclusive_group(required=True)
 ipv_group.add_argument('--ipv4', action='store_true', help='IPv4')
 ipv_group.add_argument('--ipv6', action='store_true', help='IPv6')
 parser.add_argument('--ipv6_base', default=None, help='Prefix for determining IPv6 addresses for cloud eth/wlan networks')
-parser.add_argument('--special', choices=['vpc'], help='Prefix for determining IPv6 addresses for cloud eth/wlan networks')
 args=parser.parse_args()
 
 ipv4_base=dict()
@@ -74,7 +73,7 @@ if args.ipv4:
             ipv4_net = ipaddress.ip_network(str(ipv4_base[args.net]) + '/' + str(ipv4_mask[args.net]))
             print(ipv4_net)    
     except:
-        print(f'ipv4 {args.type} not defined for net "{args.net}" and node "{args.node}"', file=sys.stderr)
+        print(f'ipv4 {args.type} failed for net "{args.net}" and node "{args.node}"', file=sys.stderr)
         raise
         exit(1)
 elif args.ipv6:
@@ -83,7 +82,11 @@ elif args.ipv6:
             if args.ipv6_base == None:
                 print(f'Must define --ipv6_base for for net "{args.net}"',file=sys.stderr)
                 exit(1)
-            ipv6 = ipaddress.ip_address(args.ipv6_base)
+            try:
+                ipv6 = ipaddress.ip_address(args.ipv6_base)
+            except ValueError:
+                ipv6 = ipaddress.ip_network(args.ipv6_base)[0]
+
             if args.net == 'cloudhub_eth':
                 ipv6 += 0*2**64
             elif args.net == 'vfleet_eth':
@@ -107,6 +110,6 @@ elif args.ipv6:
             print(ipv6_net)
             
     except:
-        print(f'ipv6 {args.type} not defined for net "{args.net}" and node "{args.node}"', file=sys.stderr)
+        print(f'ipv6 {args.type} failed for net "{args.net}" and node "{args.node}"', file=sys.stderr)
         raise
         exit(1)
