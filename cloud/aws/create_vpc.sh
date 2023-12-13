@@ -49,25 +49,27 @@ source $1
 set +a
 
 SCRIPT_PATH=$(dirname "$0")
-FLEET_ID_HEX=$(printf '%x\n' ${FLEET_ID})
-VPC_CIDR_BLOCK="10.23.0.0/16"
-# maps onto real fleet IP assignment
-VIRTUALFLEET_WLAN_CIDR_BLOCK="10.23.${FLEET_ID}.0/24"
-VIRTUALFLEET_ETH_CIDR_BLOCK="10.23.254.0/24"
-CLOUDHUB_CIDR_BLOCK="10.23.255.0/24"
-CLOUDHUB_ID=30
-CLOUDHUB_ETH_IP_ADDRESS="10.23.255.$((CLOUDHUB_ID+10))"
+IP_PY=$(realpath "${SCRIPT_PATH}/../../customization/includes.chroot/etc/jaiabot/ip.py")
 
-# IPv6 address to use for VirtualFleet VPN (fd6e:cf0d:aefa:FLEET_ID_HEX::/48)
-VIRTUALFLEET_VPN_SERVER_CIDR_48="fd6e:cf0d:aefa"
-VIRTUALFLEET_VPN_SERVER_CIDR_64="${VIRTUALFLEET_VPN_SERVER_CIDR_48}:${FLEET_ID_HEX}"
-VIRTUALFLEET_VPN_CLIENT_IPV6="${VIRTUALFLEET_VPN_SERVER_CIDR_64}::2:1"
-VIRTUALFLEET_VPN_SERVER_IPV6="${VIRTUALFLEET_VPN_SERVER_CIDR_64}::0:30"
-# IPv6 address to use for VirtualFleet VPN (fd0f:77ac:4fdf:FLEET_ID_HEX::/48)
-CLOUDHUB_VPN_SERVER_CIDR_48="fd0f:77ac:4fdf"
-CLOUDHUB_VPN_SERVER_CIDR_64="${CLOUDHUB_VPN_SERVER_CIDR_48}:${FLEET_ID_HEX}"
-CLOUDHUB_VPN_CLIENT_IPV6="${CLOUDHUB_VPN_SERVER_CIDR_64}::2:1"
-CLOUDHUB_VPN_SERVER_IPV6="${CLOUDHUB_VPN_SERVER_CIDR_64}::0:30"
+FLEET_ID_HEX=$(printf '%x\n' ${FLEET_ID})
+VPC_CIDR_BLOCK=$($IP_PY net --net vpc --fleet_id ${FLEET_ID}  --ipv4)
+# maps onto real fleet IP assignment
+VIRTUALFLEET_WLAN_CIDR_BLOCK=$($IP_PY net --net vfleet_wlan --fleet_id ${FLEET_ID}  --ipv4)
+VIRTUALFLEET_ETH_CIDR_BLOCK=$($IP_PY net --net vfleet_eth --fleet_id ${FLEET_ID} --ipv4)
+CLOUDHUB_CIDR_BLOCK=$($IP_PY net --net cloudhub_eth --fleet_id ${FLEET_ID} --ipv4)
+CLOUDHUB_ID=30
+CLOUDHUB_ETH_IP_ADDRESS=$($IP_PY addr --net cloudhub_eth --fleet_id ${FLEET_ID} --node hub --node_id ${CLOUDHUB_ID}  --ipv4)
+
+
+# IPv6 address to use for VirtualFleet VPN (fd6e:cf0d:aefa:FLEET_ID_HEX::/64)
+VIRTUALFLEET_VPN_NETWORK_IPV6=$($IP_PY net --net vfleet_vpn --fleet_id ${FLEET_ID} --ipv6)
+VIRTUALFLEET_VPN_CLIENT_IPV6=$($IP_PY addr --net vfleet_vpn --fleet_id ${FLEET_ID} --node desktop --node_id 1 --ipv6)
+VIRTUALFLEET_VPN_SERVER_IPV6=$($IP_PY addr --net vfleet_vpn --fleet_id ${FLEET_ID} --node hub --node_id ${CLOUDHUB_ID} --ipv6)
+# IPv6 address to use for VirtualFleet VPN (fd0f:77ac:4fdf:FLEET_ID_HEX::/64)
+CLOUDHUB_VPN_NETWORK_IPV6=$($IP_PY net --net cloudhub_vpn --fleet_id ${FLEET_ID} --ipv6)
+CLOUDHUB_VPN_CLIENT_IPV6=$($IP_PY addr --net cloudhub_vpn --fleet_id ${FLEET_ID} --node desktop --node_id 1 --ipv6)
+CLOUDHUB_VPN_SERVER_IPV6=$($IP_PY addr --net cloudhub_vpn --fleet_id ${FLEET_ID} --node hub --node_id ${CLOUDHUB_ID} --ipv6)
+
 # generate Wireguard keys
 CLIENT_VPN_WIREGUARD_PRIVATEKEY=$(wg genkey)
 CLIENT_VPN_WIREGUARD_PUBKEY=$(echo $CLIENT_VPN_WIREGUARD_PRIVATEKEY | wg pubkey)
@@ -336,7 +338,7 @@ Address = ${VIRTUALFLEET_VPN_CLIENT_IPV6}/128
 PublicKey = ${SERVER_WIREGUARD_PUBKEY}
 
 # Allowed private IPs
-AllowedIPs = ${VIRTUALFLEET_VPN_SERVER_CIDR_48}::/48
+AllowedIPs = ${VIRTUALFLEET_VPN_NETWORK_IPV6}
 
 # Server IP and port
 Endpoint = ${PUBLIC_IPV4_ADDRESS}:51820
@@ -359,7 +361,7 @@ Address = ${CLOUDHUB_VPN_CLIENT_IPV6}/128
 PublicKey = ${SERVER_WIREGUARD_PUBKEY}
 
 # Allowed private IPs
-AllowedIPs = ${CLOUDHUB_VPN_SERVER_CIDR_48}::/48
+AllowedIPs = ${CLOUDHUB_VPN_NETWORK_IPV6}
 
 # Server IP and port
 Endpoint = ${PUBLIC_IPV4_ADDRESS}:51821

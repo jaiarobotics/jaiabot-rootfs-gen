@@ -7,20 +7,23 @@ import ipaddress
 parser = argparse.ArgumentParser(description='Generate IP address for Jaia systems', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('type', choices=['addr', 'net'], help='Return type (addr is full address for a node, net is the network with subnet mask)')
 parser.add_argument('--node', choices=['bot', 'hub', 'desktop'], help='Type of system')
-parser.add_argument('--net',  required=True, choices=['wlan', 'fleet_vpn', 'vfleet_vpn', 'cloudhub_vpn', 'cloudhub_eth', 'vfleet_eth', 'vfleet_wlan'], help='Type of network')
-parser.add_argument('--fleet_index', required=True, type=int, help='Fleet index')
+parser.add_argument('--net',  required=True, choices=['wlan', 'fleet_vpn', 'vfleet_vpn', 'cloudhub_vpn', 'cloudhub_eth', 'vfleet_eth', 'vfleet_wlan', 'vpc'], help='Type of network')
+parser.add_argument('--fleet_id', required=True, type=int, help='Fleet id')
 parser.add_argument('--node_id',  default=0, type=int, help='Bot, hub, or desktop index')
-parser.add_argument('--ip_version', choices=[4,6], default=4, type=int, help='IP address version (4 or 6)')
+ipv_group = parser.add_mutually_exclusive_group(required=True)
+ipv_group.add_argument('--ipv4', action='store_true', help='IPv4')
+ipv_group.add_argument('--ipv6', action='store_true', help='IPv6')
 parser.add_argument('--ipv6_base', default=None, help='Prefix for determining IPv6 addresses for cloud eth/wlan networks')
 parser.add_argument('--special', choices=['vpc'], help='Prefix for determining IPv6 addresses for cloud eth/wlan networks')
 args=parser.parse_args()
 
 ipv4_base=dict()
-ipv4_base['wlan']=ipaddress.ip_address(f'10.23.{args.fleet_index}.0')
-ipv4_base['fleet_vpn']=ipaddress.ip_address(f'172.23.{args.fleet_index}.0')
+ipv4_base['wlan']=ipaddress.ip_address(f'10.23.{args.fleet_id}.0')
+ipv4_base['fleet_vpn']=ipaddress.ip_address(f'172.23.{args.fleet_id}.0')
 ipv4_base['cloudhub_eth']=ipaddress.ip_address(f'10.23.255.0')
 ipv4_base['vfleet_eth']=ipaddress.ip_address(f'10.23.254.0')
 ipv4_base['vfleet_wlan']=ipv4_base['wlan']
+ipv4_base['vpc']=ipaddress.ip_address(f'10.23.0.0')
 
 ipv4_mask=dict()
 ipv4_mask['wlan']=24
@@ -28,16 +31,19 @@ ipv4_mask['fleet_vpn']=24
 ipv4_mask['cloudhub_eth']=24
 ipv4_mask['vfleet_eth']=24
 ipv4_mask['vfleet_wlan']=ipv4_mask['wlan']
+ipv4_mask['vpc']=16
 
 ipv6_base=dict()
-ipv6_base['wlan']=ipaddress.ip_address(f'fddd:7f2e:3258:{args.fleet_index}::')
-ipv6_base['fleet_vpn']=ipaddress.ip_address(f'fd91:5457:1e5c:{args.fleet_index}::')
-ipv6_base['vfleet_vpn']=ipaddress.ip_address(f'fd6e:cf0d:aefa:{args.fleet_index}::')
-ipv6_base['cloudhub_vpn']=ipaddress.ip_address(f'fd0f:77ac:4fdf:{args.fleet_index}::')
+ipv6_base['wlan']=ipaddress.ip_address(f'fddd:7f2e:3258:{args.fleet_id}::')
+ipv6_base['fleet_vpn']=ipaddress.ip_address(f'fd91:5457:1e5c:{args.fleet_id}::')
+ipv6_base['vfleet_vpn']=ipaddress.ip_address(f'fd6e:cf0d:aefa:{args.fleet_id}::')
+ipv6_base['cloudhub_vpn']=ipaddress.ip_address(f'fd0f:77ac:4fdf:{args.fleet_id}::')
 
 ipv6_mask=dict()
 ipv6_mask['wlan']=64
 ipv6_mask['fleet_vpn']=64
+ipv6_mask['cloudhub_vpn']=64
+ipv6_mask['vfleet_vpn']=64
 ipv6_mask['cloudhub_eth']=64
 ipv6_mask['vfleet_eth']=64
 ipv6_mask['vfleet_wlan']=ipv6_mask['wlan']
@@ -55,7 +61,7 @@ if args.type =='addr' and (not args.node or not args.node_id):
     print(f'Must define --node and --node_id for "addr"',file=sys.stderr)
     exit(1)
 
-if args.ip_version == 4:
+if args.ipv4:
     try:
         if args.type == 'addr':
             ipv4 = ipv4_base[args.net] + args.node_id
@@ -71,7 +77,7 @@ if args.ip_version == 4:
         print(f'ipv4 {args.type} not defined for net "{args.net}" and node "{args.node}"', file=sys.stderr)
         raise
         exit(1)
-elif args.ip_version == 6:
+elif args.ipv6:
     try:
         if args.net in { 'cloudhub_eth', 'vfleet_eth', 'vfleet_wlan' }:
             if args.ipv6_base == None:

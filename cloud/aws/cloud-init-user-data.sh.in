@@ -13,7 +13,7 @@ cat <<EOF > /etc/wireguard/wg_virtualfleet.conf
 [Interface]
 
 # VPN Address for server
-Address = {{VIRTUALFLEET_VPN_SERVER_IPV6}}/48
+Address = {{VIRTUALFLEET_VPN_SERVER_IPV6}}/64
 
 # VPN Server Port
 ListenPort = 51820
@@ -40,7 +40,7 @@ cat <<EOF > /etc/wireguard/wg_cloudhub.conf
 [Interface]
 
 # VPN Address for server
-Address = {{CLOUDHUB_VPN_SERVER_IPV6}}/48
+Address = {{CLOUDHUB_VPN_SERVER_IPV6}}/64
 
 # VPN Server Port
 ListenPort = 51821
