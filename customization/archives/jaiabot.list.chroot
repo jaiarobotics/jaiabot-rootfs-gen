@@ -1,3 +1,6 @@
+#deb http://packages.jaia.tech/ubuntu/test/X.y/ @DISTRIBUTION@/
+#deb http://packages.jaia.tech/ubuntu/gobysoft/test/X.y/ @DISTRIBUTION@/
+
 #deb http://packages.jaia.tech/ubuntu/continuous/1.y/ @DISTRIBUTION@/
 #deb http://packages.jaia.tech/ubuntu/gobysoft/continuous/1.y/ @DISTRIBUTION@/
 

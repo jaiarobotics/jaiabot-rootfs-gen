@@ -24,7 +24,7 @@ function run_wt_menu() {
    if [[ "$USING_PRESEED" = "true" ]]; then
       local preseed_var=$1
       local preseed_val=${!preseed_var}
-      echo "wt_yesno preseed ($preseed_var): ${preseed_val}"
+      echo "wt preseed ($preseed_var): ${preseed_val}"
       WT_CHOICE=${preseed_val}
    else
       local title=$2
@@ -47,7 +47,7 @@ function run_wt_password() {
    if [[ "$USING_PRESEED" = "true" ]]; then
       local preseed_var=$1
       local preseed_val=${!preseed_var}
-      echo "wt_yesno preseed ($preseed_var): ******************"
+      echo "wt preseed ($preseed_var): ******************"
       WT_PASSWORD=${preseed_val}
    else
      local title=$2
@@ -65,7 +65,7 @@ function run_wt_inputbox() {
    if [[ "$USING_PRESEED" = "true" ]]; then
       local preseed_var=$1
       local preseed_val=${!preseed_var}
-      echo "wt_yesno preseed ($preseed_var): ${preseed_val}"
+      echo "wt preseed ($preseed_var): ${preseed_val}"
       WT_TEXT=${preseed_val}
    else
       local title=$2
@@ -83,7 +83,7 @@ function run_wt_yesno() {
    if [[ "$USING_PRESEED" = "true" ]]; then
       local preseed_var=$1
       local preseed_val=${!preseed_var}
-      echo "wt_yesno preseed ($preseed_var): ${preseed_val}"
+      echo "wt preseed ($preseed_var): ${preseed_val}"
       if [[ "${preseed_val}" = "true" ||  "${preseed_val}" = "yes" ]]; then
          return 0
       else

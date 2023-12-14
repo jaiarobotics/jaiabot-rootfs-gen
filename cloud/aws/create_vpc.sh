@@ -55,7 +55,6 @@ FLEET_ID_HEX=$(printf '%x\n' ${FLEET_ID})
 VPC_CIDR_BLOCK=$($IP_PY net --net vpc --fleet_id ${FLEET_ID}  --ipv4)
 # maps onto real fleet IP assignment
 VIRTUALFLEET_WLAN_CIDR_BLOCK=$($IP_PY net --net vfleet_wlan --fleet_id ${FLEET_ID}  --ipv4)
-VIRTUALFLEET_ETH_CIDR_BLOCK=$($IP_PY net --net vfleet_eth --fleet_id ${FLEET_ID} --ipv4)
 CLOUDHUB_CIDR_BLOCK=$($IP_PY net --net cloudhub_eth --fleet_id ${FLEET_ID} --ipv4)
 CLOUDHUB_ID=30
 CLOUDHUB_ETH_IP_ADDRESS=$($IP_PY addr --net cloudhub_eth --fleet_id ${FLEET_ID} --node hub --node_id ${CLOUDHUB_ID}  --ipv4)
@@ -135,11 +134,6 @@ SUBNET_CLOUDHUB_ID=$(run ".Subnet.SubnetId" aws ec2 create-subnet --vpc-id $VPC_
 echo ">>>>>> Created CloudHub Subnet with ID: $SUBNET_CLOUDHUB_ID and IPv6: ${SUBNET_CLOUDHUB_IPV6}"
 run "" aws ec2 modify-subnet-attribute --assign-ipv6-address-on-creation --subnet-id ${SUBNET_CLOUDHUB_ID}
 
-SUBNET_VIRTUALFLEET_ETH_IPV6=$($IP_PY net --net vfleet_eth --fleet_id ${FLEET_ID} --ipv6 --ipv6_base ${VPC_IPV6_BLOCK})
-SUBNET_VIRTUALFLEET_ETH_ID=$(run ".Subnet.SubnetId" aws ec2 create-subnet --vpc-id $VPC_ID --cidr-block $VIRTUALFLEET_ETH_CIDR_BLOCK --ipv6-cidr-block $SUBNET_VIRTUALFLEET_ETH_IPV6)
-echo ">>>>>> Created VirtualFleet Subnet with ID: $SUBNET_VIRTUALFLEET_ETH_ID and IPv6: ${SUBNET_VIRTUALFLEET_ETH_IPV6}"
-run "" aws ec2 modify-subnet-attribute --assign-ipv6-address-on-creation --subnet-id ${SUBNET_VIRTUALFLEET_ETH_ID}
-
 SUBNET_VIRTUALFLEET_WLAN_IPV6=$($IP_PY net --net vfleet_wlan --fleet_id ${FLEET_ID} --ipv6 --ipv6_base ${VPC_IPV6_BLOCK})
 SUBNET_VIRTUALFLEET_WLAN_ID=$(run ".Subnet.SubnetId" aws ec2 create-subnet --vpc-id $VPC_ID --cidr-block $VIRTUALFLEET_WLAN_CIDR_BLOCK --ipv6-cidr-block $SUBNET_VIRTUALFLEET_WLAN_IPV6)
 echo ">>>>>> Created VirtualFleet Subnet with ID: $SUBNET_VIRTUALFLEET_WLAN_ID and IPv6: ${SUBNET_VIRTUALFLEET_WLAN_IPV6}"
@@ -159,6 +153,10 @@ echo ">>>>>> Allowed UDP ports 51820-51821 (Wireguard) on Security Group"
 # Create a Security Group for VirtualFleet with no ingress rules allowed
 VIRTUALFLEET_SECURITY_GROUP_ID=$(run '.GroupId' aws ec2 create-security-group --group-name "jaia__SecurityGroup_VirtualFleet__${JAIA_CUSTOMER_NAME}" --description "jaia__${JAIA_CUSTOMER_NAME} VirtualFleet Security Group" --vpc-id $VPC_ID)
 echo ">>>>>> Created VirtualFleet Security Group with ID: $VIRTUALFLEET_SECURITY_GROUP_ID"
+
+# Allow all ingress on the local subnet (10.23.flt.0/24)
+run "" aws ec2 authorize-security-group-ingress --group-id $VIRTUALFLEET_SECURITY_GROUP_ID --protocol all --port all --cidr $VIRTUALFLEET_WLAN_CIDR_BLOCK
+echo ">>>>>> Allowed all ingress on for $VIRTUALFLEET_WLAN_CIDR_BLOCK"
 
 # Modify the Main Route Table to use the Internet Gateway
 ROUTE_TABLE_ID=$(run  '.RouteTables[0].RouteTableId' aws ec2 describe-route-tables --filters "Name=vpc-id,Values=$VPC_ID" "Name=association.main,Values=true")
@@ -194,7 +192,6 @@ declare -A replacements=(
     ["{{REPO}}"]="$REPO"
     ["{{REPO_VERSION}}"]="$REPO_VERSION"
     ["{{SUBNET_CLOUDHUB_ID}}"]="$SUBNET_CLOUDHUB_ID"
-    ["{{SUBNET_VIRTUALFLEET_ETH_ID}}"]="$SUBNET_VIRTUALFLEET_ETH_ID"
     ["{{SUBNET_VIRTUALFLEET_WLAN_ID}}"]="$SUBNET_VIRTUALFLEET_WLAN_ID"
     ["{{VPC_ID}}"]="$VPC_ID"
     ["{{VIRTUALFLEET_SECURITY_GROUP_ID}}"]="$VIRTUALFLEET_SECURITY_GROUP_ID"
@@ -283,7 +280,6 @@ echo ">>>>>> Associated Elastic IP Address with EC2 Instance"
 # Tag the Resources
 run "" aws ec2 create-tags --resources "$VPC_ID" \
     "$SUBNET_CLOUDHUB_ID" \
-    "$SUBNET_VIRTUALFLEET_ETH_ID" \
     "$SUBNET_VIRTUALFLEET_WLAN_ID" \
     "$CLOUDHUB_SECURITY_GROUP_ID" \
     "$INTERNET_GATEWAY_ID" \
@@ -299,7 +295,6 @@ run "" aws ec2 create-tags --resources "$VPC_ID" \
 
 run "" aws ec2 create-tags --resources "$VPC_ID"  --tags "Key=Name,Value=jaia__VPC__${JAIA_CUSTOMER_NAME}"
 run "" aws ec2 create-tags --resources "$SUBNET_CLOUDHUB_ID"  --tags "Key=Name,Value=jaia__Subnet_CloudHub__${JAIA_CUSTOMER_NAME}"
-run "" aws ec2 create-tags --resources "$SUBNET_VIRTUALFLEET_ETH_ID"  --tags "Key=Name,Value=jaia__Subnet_VirtualFleet_ETH__${JAIA_CUSTOMER_NAME}"
 run "" aws ec2 create-tags --resources "$SUBNET_VIRTUALFLEET_WLAN_ID"  --tags "Key=Name,Value=jaia__Subnet_VirtualFleet_WLAN__${JAIA_CUSTOMER_NAME}"
 run "" aws ec2 create-tags --resources "$CLOUDHUB_SECURITY_GROUP_ID"  --tags "Key=Name,Value=jaia__SecurityGroup_CloudHub__${JAIA_CUSTOMER_NAME}"
 run "" aws ec2 create-tags --resources "$VIRTUALFLEET_SECURITY_GROUP_ID"  --tags "Key=Name,Value=jaia__SecurityGroup_VirtualFleet__${JAIA_CUSTOMER_NAME}"
@@ -401,6 +396,27 @@ if [[ "$ENABLE_CLIENT_VPN" == "true" ]]; then
     echo -e ">>>>>> Now you can log in with\n\tssh jaia@${CLOUDHUB_VPN_SERVER_IPV6}"
 else
     echo ">>>>>> Prototype config for VPNs in /tmp/${VFLEET_VPN} and /tmp/${CLOUD_VPN}.conf. You will need to enable one or both VPNs to access the Cloudhub VM."
+fi
+
+if [[ "$UPDATE_CLIENT_ETC_HOSTS" == "true" ]]; then
+    # Define the host entries
+    CLOUDHUB_HOST="cloudhub-fleet${FLEET_ID}"
+    VIRTUALFLEET_HOST="cloudhub-virtualfleet${FLEET_ID}"
+
+    # Update or append cloudhub entry in /etc/hosts
+    if grep -q "$CLOUDHUB_HOST" /etc/hosts; then
+        sudo sed -i "s/.* $CLOUDHUB_HOST\$/$CLOUDHUB_VPN_SERVER_IPV6 $CLOUDHUB_HOST/" /etc/hosts
+    else
+        echo "$CLOUDHUB_VPN_SERVER_IPV6 $CLOUDHUB_HOST" | sudo tee /etc/hosts
+    fi
+
+    # Update or append virtualfleet entry in /etc/hosts
+    if grep -q "$VIRTUALFLEET_HOST" /etc/hosts; then
+        sudo sed -i "s/.* $VIRTUALFLEET_HOST\$/$VIRTUALFLEET_VPN_SERVER_IPV6 $VIRTUALFLEET_HOST/" /etc/hosts
+    else
+        echo "$VIRTUALFLEET_VPN_SERVER_IPV6 $VIRTUALFLEET_HOST" | sudo tee /etc/hosts
+    fi
+    echo -e ">>>>>> Updated /etc/hosts, so you can also log in with\n\tssh jaia@$CLOUDHUB_HOST"
 fi
 
 echo ">>>>>> SUCCESS"
