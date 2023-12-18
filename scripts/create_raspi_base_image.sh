@@ -358,8 +358,11 @@ if [ ! -z "$VIRTUALBOX" ]; then
     
     OUTPUT_IMAGE_VDI=$(echo $OUTPUT_IMAGE_PATH | sed "s/\.img$/\.vdi/")
     VBoxManage convertdd $OUTPUT_IMAGE_IMG $OUTPUT_IMAGE_VDI
-    VBoxManage modifyhd $OUTPUT_IMAGE_VDI --resize 32000
-
+    if [[ "$MINDISK" == "1" ]]; then
+        VBoxManage modifyhd $OUTPUT_IMAGE_VDI --resize 16000
+    else
+        VBoxManage modifyhd $OUTPUT_IMAGE_VDI --resize 32000
+    fi
     # TODO - remove!!
     sudo chown 1000:1000 $OUTPUT_IMAGE_VDI
 
