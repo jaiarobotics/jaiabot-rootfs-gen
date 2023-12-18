@@ -175,7 +175,6 @@ PUBLIC_IPV4_ADDRESS=$(run ".Addresses[0].PublicIp" aws ec2 describe-addresses --
 ## Launch the actual VM (CloudHub)
 USER_DATA_FILE_IN="${SCRIPT_PATH}/cloud-init-user-data.sh.in"
 USER_DATA_FILE="/tmp/cloud-init-user-data.sh"
-DISK_SIZE_GB=32
 
 # replace some {{MACROS}} in the user data
 cp ${USER_DATA_FILE_IN} ${USER_DATA_FILE}
@@ -409,14 +408,14 @@ if [[ "$UPDATE_CLIENT_ETC_HOSTS" == "true" ]]; then
     if grep -q "$CLOUDHUB_HOST" /etc/hosts; then
         sudo sed -i "s/.* $CLOUDHUB_HOST\$/$CLOUDHUB_VPN_SERVER_IPV6 $CLOUDHUB_HOST/" /etc/hosts
     else
-        echo "$CLOUDHUB_VPN_SERVER_IPV6 $CLOUDHUB_HOST" | sudo tee /etc/hosts
+        echo "$CLOUDHUB_VPN_SERVER_IPV6 $CLOUDHUB_HOST" | sudo tee -a /etc/hosts
     fi
 
     # Update or append virtualfleet entry in /etc/hosts
     if grep -q "$VIRTUALFLEET_HOST" /etc/hosts; then
         sudo sed -i "s/.* $VIRTUALFLEET_HOST\$/$VIRTUALFLEET_VPN_SERVER_IPV6 $VIRTUALFLEET_HOST/" /etc/hosts
     else
-        echo "$VIRTUALFLEET_VPN_SERVER_IPV6 $VIRTUALFLEET_HOST" | sudo tee /etc/hosts
+        echo "$VIRTUALFLEET_VPN_SERVER_IPV6 $VIRTUALFLEET_HOST" | sudo tee -a /etc/hosts
     fi
     echo -e ">>>>>> Updated /etc/hosts, so you can also log in with\n\tssh jaia@$CLOUDHUB_HOST"
 fi

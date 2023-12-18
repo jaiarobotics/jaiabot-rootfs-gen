@@ -100,6 +100,10 @@ apt-get -y install ansible
 
 # also need latest boto3
 pip3 install -U boto3
+cd /tmp
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+unzip awscliv2.zip
+./aws/install
 
 ## Add s3 entry for data
 cat <<EOF >> /etc/fstab
