@@ -98,6 +98,9 @@ EOF
 apt-add-repository -y ppa:ansible/ansible
 apt-get -y install ansible
 
+# also need latest boto3
+pip3 install -U boto3
+
 ## Preseed jaiabot
 mount -o remount,rw /boot/firmware
 mkdir -p /boot/firmware/jaiabot/init
