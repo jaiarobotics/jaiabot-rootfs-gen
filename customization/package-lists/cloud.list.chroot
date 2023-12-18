@@ -1,3 +1,4 @@
 cloud-init
 awscli
 python3-boto3
+s3fs

@@ -101,6 +101,11 @@ apt-get -y install ansible
 # also need latest boto3
 pip3 install -U boto3
 
+## Add s3 entry for data
+cat <<EOF >> /etc/fstab
+{{CLOUDHUB_DATA_BUCKET}} /var/log/jaiabot/bot_offload/ fuse.s3fs _netdev,allow_other,use_path_request_style,iam_role=auto,url=https://s3-{{REGION}}.amazonaws.com 0 0
+EOF
+
 ## Preseed jaiabot
 mount -o remount,rw /boot/firmware
 mkdir -p /boot/firmware/jaiabot/init

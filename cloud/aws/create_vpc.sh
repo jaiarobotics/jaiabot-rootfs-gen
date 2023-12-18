@@ -91,6 +91,7 @@ cp ${POLICY_FILE_IN} ${POLICY_FILE}
 sed -i "s/{{REGION}}/${REGION}/g" ${POLICY_FILE}
 sed -i "s/{{ACCOUNT_ID}}/${ACCOUNT_ID}/g" ${POLICY_FILE}
 sed -i "s/{{VPC_ID}}/${VPC_ID}/g" ${POLICY_FILE}
+sed -i "s/{{CLOUDHUB_DATA_BUCKET}}/${CLOUDHUB_DATA_BUCKET}/g" ${POLICY_FILE}
 
 role_name="JaiaCloudHubFleet${FLEET_ID}__Role"
 policy_name="JaiaCloudHubFleet${FLEET_ID}__Policy"
@@ -182,6 +183,7 @@ cp ${USER_DATA_FILE_IN} ${USER_DATA_FILE}
 declare -A replacements=(
     ["{{ACCOUNT_ID}}"]="$ACCOUNT_ID"
     ["{{CLIENT_VPN_WIREGUARD_PUBKEY}}"]="$CLIENT_VPN_WIREGUARD_PUBKEY"
+    ["{{CLOUDHUB_DATA_BUCKET}}"]="$CLOUDHUB_DATA_BUCKET"
     ["{{CLOUDHUB_ID}}"]="$CLOUDHUB_ID"
     ["{{CLOUDHUB_VPN_CLIENT_IPV6}}"]="$CLOUDHUB_VPN_CLIENT_IPV6"
     ["{{CLOUDHUB_VPN_SERVER_IPV6}}"]="$CLOUDHUB_VPN_SERVER_IPV6"
