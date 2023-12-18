@@ -1,0 +1,10 @@
+#!/bin/sh  
+
+echo "Download jaiabot-embedded"
+cd /opt
+
+echo "User: $(whoami)"
+
+ls -al
+
+apt-get download jaiabot-embedded
