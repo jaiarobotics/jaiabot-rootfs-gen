@@ -3,8 +3,10 @@
 echo "Download jaiabot-embedded"
 cd /opt
 
+su jaia
+
 echo "User: $(whoami)"
 
 ls -al
 
-apt-get download jaiabot-embedded
+sudo apt-get download jaiabot-embedded
