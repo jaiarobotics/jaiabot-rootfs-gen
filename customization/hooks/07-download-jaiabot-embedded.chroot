@@ -1,6 +1,0 @@
-#!/bin/sh  
-
-echo "Download jaiabot-embedded"
-cd /opt
-apt-get download jaiabot-embedded
-
