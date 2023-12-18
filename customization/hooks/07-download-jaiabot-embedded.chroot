@@ -3,10 +3,12 @@
 echo "Download jaiabot-embedded"
 cd /opt
 
-su jaia
+# Make sure /var/cache/apt/archives/partial/ and everything below it are writeable for _apt
+#chown -Rv _apt:root /var/cache/apt/archives/partial/
+#chmod -Rv 700 /var/cache/apt/archives/partial/
 
-echo "User: $(whoami)"
+apt-get download jaiabot-embedded
 
 ls -al
 
-sudo apt-get download jaiabot-embedded
+echo "Download complete"
