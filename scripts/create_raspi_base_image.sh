@@ -176,7 +176,6 @@ cd "$WORKDIR"
 
 # Create a 17.0 GiB image
 SD_IMAGE_PATH="$OUTPUT_IMAGE_PATH"
-dd if=/dev/zero of="$SD_IMAGE_PATH" bs=1048576 count=17000 conv=sparse status=none
 
 # Apply the partition map
 # 256 MB boot
@@ -184,6 +183,7 @@ dd if=/dev/zero of="$SD_IMAGE_PATH" bs=1048576 count=17000 conv=sparse status=no
 # 8 GB (4GB for --mindisk) overlay upper rw
 # 200 MB (to resize to fill disk) log partition 
 if [[ "$MINDISK" == "1" ]]; then
+    dd if=/dev/zero of="$SD_IMAGE_PATH" bs=1048576 count=11000 conv=sparse status=none
     sfdisk --quiet "$SD_IMAGE_PATH" <<EOF
 label: dos 
 device: /dev/sdc
@@ -195,6 +195,7 @@ unit: sectors
 /dev/sdc4 : start=    21504000, size=      409600, type=83
 EOF
 else
+    dd if=/dev/zero of="$SD_IMAGE_PATH" bs=1048576 count=17000 conv=sparse status=none
     sfdisk --quiet "$SD_IMAGE_PATH" <<EOF
 label: dos 
 device: /dev/sdc
