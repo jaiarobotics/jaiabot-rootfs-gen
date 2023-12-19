@@ -327,8 +327,8 @@ echo ">>>>>> Updated CloudHub ufw firewall rules to exclude connecting on Virtua
 run "" aws ec2 revoke-security-group-ingress --group-id $CLOUDHUB_SECURITY_GROUP_ID --ip-permissions IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges='[{CidrIp=0.0.0.0/0}]',Ipv6Ranges='[{CidrIpv6=::/0}]'
 echo ">>>>>> Removed SSH (port 22) on Security Group"
 
-VFLEET_VPN=wg_jaia_vfleet${FLEET_ID}
-CLOUD_VPN=wg_jaia_cloud${FLEET_ID}
+VFLEET_VPN=wg_jaia_vf${FLEET_ID}
+CLOUD_VPN=wg_jaia_ch${FLEET_ID}
 cat <<EOF > /tmp/${VFLEET_VPN}.conf
 [Interface]
 # from /etc/wireguard/privatekey on client
