@@ -92,6 +92,7 @@ jaia_aws_account_id={{ACCOUNT_ID}}
 jaia_aws_virtualfleet_security_group={{VIRTUALFLEET_SECURITY_GROUP_ID}}
 jaia_aws_virtualfleet_repository={{REPO}}
 jaia_aws_virtualfleet_repository_version={{REPO_VERSION}}
+jaia_jcc_hub_ip={{JCC_HUB_IP}}
 EOF
 
 ## Install latest ansible (required for ansible AWS to work)
@@ -107,7 +108,7 @@ unzip awscliv2.zip
 
 ## Add s3 entry for data
 cat <<EOF >> /etc/fstab
-{{CLOUDHUB_DATA_BUCKET}} /var/log/jaiabot/bot_offload/ fuse.s3fs _netdev,allow_other,use_path_request_style,iam_role=auto,url=https://s3-{{REGION}}.amazonaws.com 0 0
+{{CLOUDHUB_DATA_BUCKET}} /var/log/jaiabot/bot_offload/ fuse.s3fs _netdev,allow_other,use_path_request_style,iam_role=auto,url=https://s3-{{REGION}}.amazonaws.com,dbglevel=warn,endpoint={{REGION}} 0 0
 EOF
 
 ## Preseed jaiabot

@@ -44,12 +44,14 @@ function run() {
     return $result
 }
 
+
 set -a
 source $1
 set +a
 
 SCRIPT_PATH=$(dirname "$0")
 IP_PY=$(realpath "${SCRIPT_PATH}/../../customization/includes.chroot/etc/jaiabot/ip.py")
+JCC_HUB_IP=$(${IP_PY} addr --node hub --net cloudhub_vpn --fleet_id ${FLEET_ID} --node_id ${JCC_HUB_ID} --ipv6)
 
 FLEET_ID_HEX=$(printf '%x\n' ${FLEET_ID})
 VPC_CIDR_BLOCK=$($IP_PY net --net vpc --fleet_id ${FLEET_ID}  --ipv4)
@@ -188,6 +190,7 @@ declare -A replacements=(
     ["{{CLOUDHUB_VPN_SERVER_IPV6}}"]="$CLOUDHUB_VPN_SERVER_IPV6"
     ["{{FLEET_ID}}"]="$FLEET_ID"
     ["{{JAIA_CUSTOMER_NAME}}"]="$JAIA_CUSTOMER_NAME"
+    ["{{JCC_HUB_IP}}"]="$JCC_HUB_IP"
     ["{{PUBLIC_IPV4_ADDRESS}}"]="$PUBLIC_IPV4_ADDRESS"
     ["{{REGION}}"]="$REGION"
     ["{{REPO}}"]="$REPO"
@@ -317,6 +320,9 @@ while SERVER_WIREGUARD_PUBKEY=$(ssh -o ConnectTimeout=10 -o PasswordAuthenticati
 done
 
 echo ">>>>>> Server Wireguard Pubkey: ${SERVER_WIREGUARD_PUBKEY}"
+
+ssh -o PasswordAuthentication=No -o StrictHostKeyChecking=no jaia@${PUBLIC_IPV4_ADDRESS} "sudo ufw allow in on eth0 proto udp to any port 51820; sudo ufw allow in on eth0 proto udp to any port 51821; sudo ufw allow in on wg_cloudhub; sudo ufw --force enable"
+echo ">>>>>> Updated CloudHub ufw firewall rules to exclude connecting on VirtualFleet VPN"
 
 run "" aws ec2 revoke-security-group-ingress --group-id $CLOUDHUB_SECURITY_GROUP_ID --ip-permissions IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges='[{CidrIp=0.0.0.0/0}]',Ipv6Ranges='[{CidrIpv6=::/0}]'
 echo ">>>>>> Removed SSH (port 22) on Security Group"
