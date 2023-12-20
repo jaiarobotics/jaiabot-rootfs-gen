@@ -40,7 +40,6 @@ ipv4_mask['vfleet_eth']=24
 ipv4_mask['vfleet_wlan']=ipv4_mask['wlan']
 ipv4_mask['vpc']=16
 
-
 ipv6_base=dict()
 ipv6_base['wlan']=ipaddress.ip_address(f'fddd:7f2e:3258:{args.fleet_id:x}::')
 ipv6_base['fleet_vpn']=ipaddress.ip_address(f'fd91:5457:1e5c:{args.fleet_id:x}::')
