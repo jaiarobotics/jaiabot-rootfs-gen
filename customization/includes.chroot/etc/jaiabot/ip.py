@@ -16,6 +16,14 @@ ipv_group.add_argument('--ipv6', action='store_true', help='IPv6')
 parser.add_argument('--ipv6_base', default=None, help='Prefix for determining IPv6 addresses for cloud eth/wlan networks')
 args=parser.parse_args()
 
+fleet_id_min=0
+fleet_id_max=255
+
+if not args.fleet_id in range(fleet_id_min, fleet_id_max+1):
+    print(f"fleet_id for {args.fleet_id} is not in range: {fleet_id_min} to {fleet_id_max}", file=sys.stderr)
+    exit(1)
+
+
 ipv4_base=dict()
 ipv4_base['wlan']=ipaddress.ip_address(f'10.23.{args.fleet_id}.0')
 ipv4_base['fleet_vpn']=ipaddress.ip_address(f'172.23.{args.fleet_id}.0')
@@ -32,11 +40,12 @@ ipv4_mask['vfleet_eth']=24
 ipv4_mask['vfleet_wlan']=ipv4_mask['wlan']
 ipv4_mask['vpc']=16
 
+
 ipv6_base=dict()
-ipv6_base['wlan']=ipaddress.ip_address(f'fddd:7f2e:3258:{args.fleet_id}::')
-ipv6_base['fleet_vpn']=ipaddress.ip_address(f'fd91:5457:1e5c:{args.fleet_id}::')
-ipv6_base['vfleet_vpn']=ipaddress.ip_address(f'fd6e:cf0d:aefa:{args.fleet_id}::')
-ipv6_base['cloudhub_vpn']=ipaddress.ip_address(f'fd0f:77ac:4fdf:{args.fleet_id}::')
+ipv6_base['wlan']=ipaddress.ip_address(f'fddd:7f2e:3258:{args.fleet_id:x}::')
+ipv6_base['fleet_vpn']=ipaddress.ip_address(f'fd91:5457:1e5c:{args.fleet_id:x}::')
+ipv6_base['vfleet_vpn']=ipaddress.ip_address(f'fd6e:cf0d:aefa:{args.fleet_id:x}::')
+ipv6_base['cloudhub_vpn']=ipaddress.ip_address(f'fd0f:77ac:4fdf:{args.fleet_id:x}::')
 
 ipv6_mask=dict()
 ipv6_mask['wlan']=64
