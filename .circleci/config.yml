@@ -7,15 +7,7 @@ workflows:
   commit:
     jobs:
       - raspi-image-create
-#          filters:
-#            branches:
-#              ignore:
-#                - feature/aws-cloud
       - virtualbox-image-create
-#          filters:
-#            branches:
-#              ignore:
-#                - feature/aws-cloud
       - aws-sync:
           requires:
             - raspi-image-create
@@ -102,8 +94,7 @@ jobs:
     docker:
       - image: cimg/base:current
     environment:
-#      AWS_DEFAULT_REGION: "us-east-1"
-      AWS_DEFAULT_REGION: "ap-southeast-2"
+      AWS_DEFAULT_REGION: "us-east-1"
     resource_class: medium
     steps:
       - checkout
@@ -111,7 +102,7 @@ jobs:
           at: /tmp
       - aws-cli/setup:
           profile_name: OIDC-User
-          role_arn: arn:aws:iam::472532551733:role/JaiaS3JaiaBotImagesCircleCI
+          role_arn: arn:aws:iam::120512385734:role/JaiaCircleCI
       - run:
           name: Set environmental variables for which repo tag to use (analogous to APT repo names)
           command: |
@@ -129,15 +120,15 @@ jobs:
       - run:
           name: Delete previous images for this repo/version
           command: |
-            aws s3 rm --recursive s3://jaiabot-images-test/${JAIABOT_ROOTFS_GEN_REPO}/${JAIABOT_ROOTFS_GEN_REPO_VERSION}
+            aws s3 rm --recursive s3://jaia-disk-images/${JAIABOT_ROOTFS_GEN_REPO}/${JAIABOT_ROOTFS_GEN_REPO_VERSION}
       - aws-s3/sync:
           profile_name: OIDC-User
           from: /tmp/vbox
-          to: s3://jaiabot-images-test/${JAIABOT_ROOTFS_GEN_REPO}/${JAIABOT_ROOTFS_GEN_REPO_VERSION}/vbox
+          to: s3://jaia-disk-images/${JAIABOT_ROOTFS_GEN_REPO}/${JAIABOT_ROOTFS_GEN_REPO_VERSION}/vbox
       - aws-s3/sync:
           profile_name: OIDC-User
           from: /tmp/images
-          to: s3://jaiabot-images-test/${JAIABOT_ROOTFS_GEN_REPO}/${JAIABOT_ROOTFS_GEN_REPO_VERSION}/rpi
+          to: s3://jaia-disk-images/${JAIABOT_ROOTFS_GEN_REPO}/${JAIABOT_ROOTFS_GEN_REPO_VERSION}/rpi
       - run:
           name: Import new AMI
           command: |
