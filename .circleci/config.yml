@@ -6,13 +6,25 @@ workflows:
   version: 2
   commit:
     jobs:
-      - raspi-image-create
-      - virtualbox-image-create
+      - raspi-image-create:
+          filters:
+            tags:
+              only: /.*/
+      - virtualbox-image-create:
+          filters:
+            tags:
+              only: /.*/
       - aws-sync:
           requires:
             - raspi-image-create
             - virtualbox-image-create
-
+          filters:
+            tags:
+              only: /.*/
+            branches:
+              only:
+                - "1.y"
+                - "feature/aws-cloud"                  
   nightly:
     triggers:
       - schedule:

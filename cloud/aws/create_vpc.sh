@@ -310,6 +310,8 @@ run "" aws ec2 create-tags --resources "$INSTANCE_ID" --tags "Key=Name,Value=jai
 run "" aws ec2 create-tags --resources "$EIP_ALLOCATION_ID" --tags "Key=Name,Value=jaia__CloudHub_VM__ElasticIP__${JAIA_CUSTOMER_NAME}"
 run "" aws ec2 create-tags --resources "$ENI_ID_0" --tags "Key=Name,Value=jaia__CloudHub_VM__NetworkInterface0__${JAIA_CUSTOMER_NAME}"
 
+run "" aws s3api put-bucket-tagging --bucket "$CLOUDHUB_DATA_BUCKET" --tagging "TagSet=[{Key=jaia_customer,Value=${JAIA_CUSTOMER_NAME}},{Key=jaia_fleet,Value=${FLEET_ID}}]"
+
 echo ">>>>>> Tagged resources"
 
 # Wait to get public key
