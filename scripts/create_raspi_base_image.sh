@@ -49,6 +49,9 @@
 #     --virtualbox
 #         Create an amd64 virtualbox VDI, rather than a Raspi SD card image (but otherwise create a very similar image)
 #
+#     --mindisk
+#         Create an image with a smaller disk image size than the default (useful for Cloud machines)
+#
 # This script is invoked by the raspi-image-master job in the cgsn_mooring
 # project's CircleCI but can also be invoked directly.
 #
@@ -143,6 +146,9 @@ while [[ $# -gt 0 ]]; do
   --virtualbox)
     VIRTUALBOX=1
     ;;
+  --mindisk)
+    MINDISK=1
+    ;;
   *)
     echo "Unexpected argument: $KEY" >&2
     exit 1
@@ -170,15 +176,28 @@ cd "$WORKDIR"
 
 # Create a 17.0 GiB image
 SD_IMAGE_PATH="$OUTPUT_IMAGE_PATH"
-dd if=/dev/zero of="$SD_IMAGE_PATH" bs=1048576 count=17000 conv=sparse status=none
 
 # Apply the partition map
 # 256 MB boot
-# 8 GB underlay ro rootfs
-# 8 GB overlay upper rw
+# 8 GB (6GB for --mindisk) underlay ro rootfs
+# 8 GB (4GB for --mindisk) overlay upper rw
 # 200 MB (to resize to fill disk) log partition 
-sfdisk --quiet "$SD_IMAGE_PATH" <<EOF
-label: dos
+if [[ "$MINDISK" == "1" ]]; then
+    dd if=/dev/zero of="$SD_IMAGE_PATH" bs=1048576 count=11000 conv=sparse status=none
+    sfdisk --quiet "$SD_IMAGE_PATH" <<EOF
+label: dos 
+device: /dev/sdc
+unit: sectors
+
+/dev/sdc1 : start=        8192, size=      524288, type=c, bootable
+/dev/sdc2 : start=      532480, size=    12582912, type=83
+/dev/sdc3 : start=    13115392, size=     8388608, type=83
+/dev/sdc4 : start=    21504000, size=      409600, type=83
+EOF
+else
+    dd if=/dev/zero of="$SD_IMAGE_PATH" bs=1048576 count=17000 conv=sparse status=none
+    sfdisk --quiet "$SD_IMAGE_PATH" <<EOF
+label: dos 
 device: /dev/sdc
 unit: sectors
 
@@ -187,6 +206,7 @@ unit: sectors
 /dev/sdc3 : start=    17309696, size=    16777216, type=83
 /dev/sdc4 : start=    34086912, size=      409600, type=83
 EOF
+fi
 
 # Set up loop device for the partitions
 attach_image "$SD_IMAGE_PATH" BOOT_DEV ROOTFS_DEV OVERLAY_DEV DATA_DEV
@@ -223,6 +243,7 @@ if [ -z "$ROOTFS_TARBALL" ]; then
     chmod 775 config/includes.chroot/etc/jaiabot
     echo "JAIABOT_IMAGE_VERSION=$ROOTFS_BUILD_TAG" >> config/includes.chroot/etc/jaiabot/version
     echo "JAIABOT_IMAGE_BUILD_DATE=\"`date -u`\""  >> config/includes.chroot/etc/jaiabot/version
+    echo "RASPI_FIRMWARE_VERSION=$RASPI_FIRMWARE_VERSION"  >> config/includes.chroot/etc/jaiabot/version
     lb build
     cd ..
     ROOTFS_TARBALL=rootfs-build/binary-tar.tar.gz
@@ -231,6 +252,9 @@ fi
 # Install the rootfs tarball to the partition
 sudo tar -C "$ROOTFS_PARTITION" --strip-components 1 \
   -xpzf "$ROOTFS_TARBALL"
+
+GOBY_VERSION=$(chroot $ROOTFS_PARTITION dpkg-query -W -f='${Version}' libgoby3 | cut -d - -f 1)
+JAIABOT_VERSION=$(chroot $ROOTFS_PARTITION dpkg-query -W -f='${Version}' libjaiabot | cut -d - -f 1)
 
 # Download the Raspberry Pi firmware tarball if we don't have it
 if [ -z "$FIRMWARE_PATH" ]; then
@@ -301,11 +325,17 @@ sudo mount -o bind /sys "$ROOTFS_PARTITION"/sys
 
 # Persist the rootfs in case we want it
 OUTPUT_ROOTFS_TARBALL=$(echo $OUTPUT_IMAGE_PATH | sed "s/\.img$/\.tar.gz/")
+OUTPUT_METADATA=$(echo $OUTPUT_IMAGE_PATH | sed "s/\.img$/\.metadata.txt/")
 cp "${ROOTFS_TARBALL}" "${OUTPUT_ROOTFS_TARBALL}"
 
 # Copy the preseed example on the boot partition
 sudo mkdir -p "$BOOT_PARTITION"/jaiabot/init
 sudo cp "$ROOTFS_PARTITION"/etc/jaiabot/init/first-boot.preseed.ex "$BOOT_PARTITION"/jaiabot/init
+
+# Write metadata
+echo "export JAIABOT_ROOTFS_GEN_TAG='$ROOTFS_BUILD_TAG'" > ${OUTPUT_METADATA}
+echo "export JAIABOT_VERSION='$JAIABOT_VERSION'" >> ${OUTPUT_METADATA}
+echo "export GOBY_VERSION='$GOBY_VERSION'" >> ${OUTPUT_METADATA}
 
 if [ ! -z "$VIRTUALBOX" ]; then
     sudo chroot rootfs apt-get -y install linux-image-generic
@@ -329,8 +359,11 @@ if [ ! -z "$VIRTUALBOX" ]; then
     
     OUTPUT_IMAGE_VDI=$(echo $OUTPUT_IMAGE_PATH | sed "s/\.img$/\.vdi/")
     VBoxManage convertdd $OUTPUT_IMAGE_IMG $OUTPUT_IMAGE_VDI
-    VBoxManage modifyhd $OUTPUT_IMAGE_VDI --resize 32000
-
+    if [[ "$MINDISK" == "1" ]]; then
+        VBoxManage modifyhd $OUTPUT_IMAGE_VDI --resize 16000
+    else
+        VBoxManage modifyhd $OUTPUT_IMAGE_VDI --resize 32000
+    fi
     # TODO - remove!!
     sudo chown 1000:1000 $OUTPUT_IMAGE_VDI
 

@@ -66,11 +66,11 @@ function import_bot_or_hub()
     HOST_SSH_PORT=$((HOST_SSH_PORT + 1))    
 }
 
-for n in `seq 0 $((N_BOTS-1))`; do
+for n in `seq 1 $((N_BOTS))`; do
     import_bot_or_hub bot $n
 done
 
-for n in `seq 0 $((N_HUBS-1))`; do
+for n in `seq 1 $((N_HUBS))`; do
     import_bot_or_hub hub $n
 done
 

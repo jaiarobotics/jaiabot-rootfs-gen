@@ -1,10 +1,29 @@
-version: 2
+version: 2.1
+orbs:
+  aws-cli: circleci/aws-cli@4.0
+  aws-s3: circleci/aws-s3@4.0
 workflows:
   version: 2
   commit:
     jobs:
-      - raspi-image-create      
-      - virtualbox-image-create
+      - raspi-image-create:
+          filters:
+            tags:
+              only: /.*/
+      - virtualbox-image-create:
+          filters:
+            tags:
+              only: /.*/
+      - aws-sync:
+          requires:
+            - raspi-image-create
+            - virtualbox-image-create
+          filters:
+            tags:
+              only: /.*/
+            branches:
+              only:
+                - "1.y"
   nightly:
     triggers:
       - schedule:
@@ -22,49 +41,132 @@ jobs:
     machine:
       image: ubuntu-2004:current
     resource_class: arm.medium
+    environment:
+      CREATE_IMAGE_ARGS: "--native"
     steps:
       - checkout
       - run:
           name: Install apt dependencies
           command: sudo apt-get update && sudo apt-get -y install pigz dosfstools gcc-aarch64-linux-gnu git kpartx live-build sudo wget
-      - run:
-          name: Create base SD card image for Raspberry Pi
-          command: >-
-            mkdir images &&
-            sudo scripts/create_raspi_base_image.sh --dest images/base_image.img --native
-      - run:
-          name: Rename image
-          command: >-
-            CIRCLE_BRANCH_ESC=$(echo "$CIRCLE_BRANCH" | tr '/' '_')
-            ROOTFS_BUILD_TAG="$(git describe --tags HEAD | sed 's/_/~/' | sed 's/-/+/g')" &&          
-            mv images/base_image.img \
-               images/jaiabot_"$CIRCLE_BRANCH_ESC"_img-"$ROOTFS_BUILD_TAG".img
+      - run: &run-create-image
+          name: Create filesystem image
+          command: |
+            if [ ! -z "$CIRCLE_BRANCH" ]; then
+              export CIRCLE_BRANCH_ESC=$(echo "$CIRCLE_BRANCH-" | tr '/' '_');
+            else
+              export CIRCLE_BRANCH_ESC=""
+            fi
+            export ROOTFS_BUILD_TAG="$(git describe --tags HEAD | sed 's/_/~/' | sed 's/-/+/g')"
+            export TMP_IMG_NAME=jaiabot
+            mkdir /tmp/images
+            sudo scripts/create_raspi_base_image.sh --dest ${TMP_IMG_NAME}.img ${CREATE_IMAGE_ARGS}
+            source ${TMP_IMG_NAME}.metadata.txt
+            for filename in ${TMP_IMG_NAME}.*; do
+              extension="${filename#*.}"
+              mv "${TMP_IMG_NAME}.${extension}" "/tmp/images/jaiabot__rootfs-${CIRCLE_BRANCH_ESC}v${JAIABOT_ROOTFS_GEN_TAG}__code-v${JAIABOT_VERSION}.${extension}"
+            done
       - run:
           name: Compress image
-          command: pigz images/*.img
+          command: pigz /tmp/images/*.img
       - store_artifacts:
-          path: images/
+          path: /tmp/images/
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - 'images/*.img.gz'
+            - 'images/*.metadata.txt'
+            
   virtualbox-image-create:
     machine:
       image: ubuntu-2004:current
     resource_class: medium
+    environment:
+      CREATE_IMAGE_ARGS: "--virtualbox --mindisk"
     steps:
       - checkout
       - run:
           name: Install apt dependencies
-          command: sudo apt-get update && sudo apt-get -y install pigz dosfstools gcc-aarch64-linux-gnu git kpartx live-build sudo wget virtualbox
-      - run:
-          name: Create base SD card image for VirtualBox
-          command: >-
-            CIRCLE_BRANCH_ESC=$(echo "$CIRCLE_BRANCH" | tr '/' '_')
-            mkdir images &&
-            ROOTFS_BUILD_TAG="$(git describe --tags HEAD | sed 's/_/~/' | sed 's/-/+/g')" &&          
-            sudo scripts/create_raspi_base_image.sh --dest images/jaiabot_"$CIRCLE_BRANCH_ESC"_img-"$ROOTFS_BUILD_TAG".img --virtualbox
+          command: sudo apt-get update && sudo apt-get -y install dosfstools gcc-aarch64-linux-gnu git kpartx live-build sudo wget virtualbox
+      - run: *run-create-image
       - run:
           name: Move image for storage
-          command: >-
-            mkdir vbox &&
-            sudo chmod a+rwx images/*.ova &&
-            mv images/*.ova vbox/
+          command: |
+            mkdir /tmp/vbox &&
+            sudo chmod a+rwx /tmp/images/*.ova &&
+            mv /tmp/images/*.ova /tmp/vbox/
       - store_artifacts:
-          path: vbox/
+          path: /tmp/vbox/
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - 'vbox/*.ova'
+  
+  aws-sync:
+    docker:
+      - image: cimg/base:current
+    environment:
+      AWS_DEFAULT_REGION: "us-east-1"
+    resource_class: medium
+    steps:
+      - checkout
+      - attach_workspace:
+          at: /tmp
+      - aws-cli/setup:
+          profile_name: OIDC-User
+          role_arn: arn:aws:iam::120512385734:role/JaiaCircleCI
+      - run:
+          name: Set environmental variables for which repo tag to use (analogous to APT repo names)
+          command: |
+            # use script from jaiabot that does the same thing
+            
+            git clone https://github.com/jaiarobotics/jaiabot.git
+            
+            repo=$(jaiabot/.circleci/deb_repo.sh "$CIRCLE_BRANCH" "$CIRCLE_TAG" "repo")
+            version=$(jaiabot/.circleci/deb_repo.sh "$CIRCLE_BRANCH" "$CIRCLE_TAG" "version")
+            echo "repo:${repo}"
+            echo "version:${version}"
+            # export these for later use
+            echo "export JAIABOT_ROOTFS_GEN_REPO=${repo}" >> $BASH_ENV
+            echo "export JAIABOT_ROOTFS_GEN_REPO_VERSION=${version}" >> $BASH_ENV
+      - run:
+          name: Delete previous images for this repo/version
+          command: |
+            aws s3 rm --recursive s3://jaia-disk-images/${JAIABOT_ROOTFS_GEN_REPO}/${JAIABOT_ROOTFS_GEN_REPO_VERSION}
+      - aws-s3/sync:
+          profile_name: OIDC-User
+          from: /tmp/vbox
+          to: s3://jaia-disk-images/${JAIABOT_ROOTFS_GEN_REPO}/${JAIABOT_ROOTFS_GEN_REPO_VERSION}/vbox
+      - aws-s3/sync:
+          profile_name: OIDC-User
+          from: /tmp/images
+          to: s3://jaia-disk-images/${JAIABOT_ROOTFS_GEN_REPO}/${JAIABOT_ROOTFS_GEN_REPO_VERSION}/rpi
+      - run:
+          name: Import new AMI
+          command: |
+            OVA=$(basename $(ls /tmp/vbox/*.ova))
+
+            IMAGE_NAME=${OVA%.*}
+            # writes result.json for later use
+            cloud/aws/import_ova_as_ami.sh ${OVA} ${JAIABOT_ROOTFS_GEN_REPO} ${JAIABOT_ROOTFS_GEN_REPO_VERSION}
+            echo "export JAIABOT_IMAGE_NAME=${IMAGE_NAME}" >> $BASH_ENV
+      - run:
+          name: Deregister old AMI and delete snapshots
+          command: |
+            cloud/aws/delete_ami.sh ${JAIABOT_ROOTFS_GEN_REPO} ${JAIABOT_ROOTFS_GEN_REPO_VERSION}
+      - run:
+          name: Tag new AMI
+          command: |
+            source /tmp/images/*.metadata.txt
+            image_id=$(jq -r '.ImportImageTasks[0].ImageId' result.json)
+            snapshot_id=$(jq -r '.ImportImageTasks[0].SnapshotDetails[0].SnapshotId' result.json)
+            aws ec2 create-tags --resources ${image_id} ${snapshot_id} --tags \
+              "Key=Name,Value=${JAIABOT_IMAGE_NAME}" \
+              "Key=jaia_creator,Value=circleci" \
+              "Key=jaiabot-rootfs-gen_version,Value=${JAIABOT_ROOTFS_GEN_TAG}" \
+              "Key=jaiabot-rootfs-gen_repository,Value=${JAIABOT_ROOTFS_GEN_REPO}" \
+              "Key=jaiabot-rootfs-gen_repository_version,Value=${JAIABOT_ROOTFS_GEN_REPO_VERSION}" \
+              "Key=jaiabot-rootfs-gen_build-date,Value=$(date -u)" \
+              "Key=jaiabot-rootfs-gen_build-unixtime,Value=$(date -u +%s)" \
+              "Key=jaiabot_version_when_built,Value=${JAIABOT_VERSION}" \
+              "Key=goby_version_when_built,Value=${GOBY_VERSION}"
+              
