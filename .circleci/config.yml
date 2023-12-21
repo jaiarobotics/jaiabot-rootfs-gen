@@ -147,8 +147,10 @@ jobs:
           command: |
             source /tmp/images/*.metadata.txt
             image_id=$(jq -r '.ImportImageTasks[0].ImageId' result.json)
-            aws ec2 create-tags --resources ${image_id} --tags \
+            snapshot_id=$(jq -r '.ImportImageTasks[0].ImageId.SnapshotDetails[0].SnapshotId' result.json)
+            aws ec2 create-tags --resources ${image_id} ${snapshot_id} --tags \
               "Key=Name,Value=${JAIABOT_IMAGE_NAME}" \
+              "Key=jaia_creator,Value=circleci" \
               "Key=jaiabot-rootfs-gen_version,Value=${JAIABOT_ROOTFS_GEN_TAG}" \
               "Key=jaiabot-rootfs-gen_repository,Value=${JAIABOT_ROOTFS_GEN_REPO}" \
               "Key=jaiabot-rootfs-gen_repository_version,Value=${JAIABOT_ROOTFS_GEN_REPO_VERSION}" \
