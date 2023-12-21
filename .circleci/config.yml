@@ -24,7 +24,6 @@ workflows:
             branches:
               only:
                 - "1.y"
-                - "feature/aws-cloud"                  
   nightly:
     triggers:
       - schedule:
