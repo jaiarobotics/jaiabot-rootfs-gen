@@ -3,8 +3,10 @@ workflows:
   version: 2
   commit:
     jobs:
-      - raspi-image-create      
-      - virtualbox-image-create
+      - raspi-image-create-focal
+      - virtualbox-image-create-focal
+      - raspi-image-create-jammy
+      - virtualbox-image-create-jammy
   nightly:
     triggers:
       - schedule:
@@ -12,59 +14,97 @@ workflows:
           filters:
             branches:
               only:
-                - /.*/
+                - master
     jobs:
-      - raspi-image-create
-      - virtualbox-image-create
+      - raspi-image-create-focal
+      - virtualbox-image-create-focal
+      - raspi-image-create-jammy
+      - virtualbox-image-create-jammy
 
 jobs:
-  raspi-image-create:
+  raspi-image-create-focal:
     machine:
       image: ubuntu-2004:current
     resource_class: arm.medium
+    environment:
+      DISTRO_RELEASE_CODENAME: "focal"
+      DEBIAN_FRONTEND: "noninteractive"
     steps:
       - checkout
-      - run:
+      - run: &run-install-apt-raspi
           name: Install apt dependencies
           command: sudo apt-get update && sudo apt-get -y install pigz dosfstools gcc-aarch64-linux-gnu git kpartx live-build sudo wget
-      - run:
+      - run: &run-create-sd-raspi
           name: Create base SD card image for Raspberry Pi
           command: >-
             mkdir images &&
-            sudo scripts/create_raspi_base_image.sh --dest images/base_image.img --native
-      - run:
+            sudo scripts/create_raspi_base_image.sh --dest images/base_image.img --native --distribution ${DISTRO_RELEASE_CODENAME}
+      - run: &run-rename-image-raspi
           name: Rename image
           command: >-
             CIRCLE_BRANCH_ESC=$(echo "$CIRCLE_BRANCH" | tr '/' '_')
             ROOTFS_BUILD_TAG="$(git describe --tags HEAD | sed 's/_/~/' | sed 's/-/+/g')" &&          
             mv images/base_image.img \
-               images/jaiabot_"$CIRCLE_BRANCH_ESC"_img-"$ROOTFS_BUILD_TAG".img
-      - run:
+               images/jaiabot_"$DISTRO_RELEASE_CODENAME"_"$CIRCLE_BRANCH_ESC"_img-"$ROOTFS_BUILD_TAG".img
+      - run: &run-compress-image-raspi
           name: Compress image
           command: pigz images/*.img
-      - store_artifacts:
+      - store_artifacts: &store-raspi
           path: images/
-  virtualbox-image-create:
+  virtualbox-image-create-focal:
     machine:
       image: ubuntu-2004:current
     resource_class: medium
+    environment:
+      DISTRO_RELEASE_CODENAME: "focal"
+      DEBIAN_FRONTEND: "noninteractive"
     steps:
       - checkout
-      - run:
+      - run: &run-install-apt-vbox
           name: Install apt dependencies
           command: sudo apt-get update && sudo apt-get -y install pigz dosfstools gcc-aarch64-linux-gnu git kpartx live-build sudo wget virtualbox
-      - run:
+      - run: &run-create-sd-vbox
           name: Create base SD card image for VirtualBox
           command: >-
             CIRCLE_BRANCH_ESC=$(echo "$CIRCLE_BRANCH" | tr '/' '_')
             mkdir images &&
             ROOTFS_BUILD_TAG="$(git describe --tags HEAD | sed 's/_/~/' | sed 's/-/+/g')" &&          
-            sudo scripts/create_raspi_base_image.sh --dest images/jaiabot_"$CIRCLE_BRANCH_ESC"_img-"$ROOTFS_BUILD_TAG".img --virtualbox
-      - run:
+            sudo scripts/create_raspi_base_image.sh --dest images/jaiabot_"$DISTRO_RELEASE_CODENAME"_"$CIRCLE_BRANCH_ESC"_img-"$ROOTFS_BUILD_TAG".img --virtualbox --distribution ${DISTRO_RELEASE_CODENAME}
+      - run: &run-rename-image-vbox
           name: Move image for storage
           command: >-
             mkdir vbox &&
             sudo chmod a+rwx images/*.ova &&
             mv images/*.ova vbox/
-      - store_artifacts:
+      - store_artifacts: &store-vbox
           path: vbox/
+
+  raspi-image-create-jammy:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: arm.medium
+    environment:
+      DISTRO_RELEASE_CODENAME: "jammy"
+      DEBIAN_FRONTEND: "noninteractive"
+    steps:
+      - checkout
+      - run: *run-install-apt-raspi
+      - run: *run-create-sd-raspi
+      - run: *run-rename-image-raspi
+      - run: *run-compress-image-raspi
+      - store_artifacts: *store-raspi
+  virtualbox-image-create-jammy:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: medium
+    environment:
+      DISTRO_RELEASE_CODENAME: "jammy"
+      DEBIAN_FRONTEND: "noninteractive"
+    steps:
+      - checkout
+      - run: *run-install-apt-vbox
+      - run: *run-create-sd-vbox
+      - run: *run-rename-image-vbox
+      - store_artifacts: *store-vbox
+
+          

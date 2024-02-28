@@ -5,7 +5,7 @@ export LB_BOOTSTRAP_FLAVOUR="minbase"
 lb config noauto \
  --apt-indices none \
  --architectures arm64 \
- --archive-areas 'main universe multiverse' \
+ --archive-areas 'main universe multiverse restricted' \
  --binary-filesystem ext4 \
  --binary-images tar \
  --chroot-filesystem none \
